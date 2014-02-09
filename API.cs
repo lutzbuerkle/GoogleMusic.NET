@@ -39,6 +39,8 @@ namespace GoogleMusic
 {
     public class GoogleMusicClient
     {
+        private const string _useragent = "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1)";
+
         private Credentials _credentials;
 
         public delegate void ErrorHandlerDelegate(string message, Exception error);
@@ -63,6 +65,7 @@ namespace GoogleMusic
             bool success = ClientLogin(login, passwd);
             if (success) GetAuthenticationCookies();
         }
+
 
         private bool ClientLogin(string login, string passwd)
         {
@@ -104,6 +107,7 @@ namespace GoogleMusic
             return true;
         }
 
+
         private void GetAuthenticationCookies()
         {
             HttpWebRequest request;
@@ -143,6 +147,7 @@ namespace GoogleMusic
             LoginStatus = true;
         }
 
+
         public void Logout()
         {
             _credentials = null;
@@ -153,6 +158,51 @@ namespace GoogleMusic
 
 
         #region GoogleMusicServices
+
+        public Status GetStatus()
+        {
+            Status status = null;
+
+            string response = GoogleMusicService(Service.getstatus);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                status = JsonConvert.DeserializeObject<Status>(response);
+            }
+
+            return status;
+        }
+
+
+        public int GetTrackCount()
+        {
+            Status status = GetStatus();
+
+            if (status == null)
+            {
+                return 0;
+            }
+            else
+            {
+                return status.availableTracks;
+            }
+        }
+
+
+        public Settings GetSettings()
+        {
+            Settings settings = null;
+
+            string response = GoogleMusicService(Service.loadsettings);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                settings = JsonConvert.DeserializeObject<Settings>(response);
+            }
+
+            return settings;
+        }
+
 
         public Playlist GetAllTracks()
         {
@@ -190,13 +240,13 @@ namespace GoogleMusic
             return playlist;
         }
 
+
         public object GetPlaylist(string playlist_id = "all")
         {
-            string response;
             object playlist;
             string jsonString = (playlist_id == "all") ? null : String.Format(@"{{""id"":""{0}""}}", playlist_id);
 
-            response = GoogleMusicService(Service.loadplaylist, jsonString);
+            string response = GoogleMusicService(Service.loadplaylist, jsonString);
 
             if (String.IsNullOrEmpty(response))
             {
@@ -214,50 +264,64 @@ namespace GoogleMusic
             return playlist;
         }
 
-        public string AddPlaylist(string name)
+
+        public string CreatePlaylist(string name)
         {
-            string response;
-            string playlist_id;
-            string jsonString = String.Format(@"{{""title"":""{0}""}}", name);
+            string playlist_id = null;
+            string jsonString = String.Format(@"{{""name"":""{0}""}}", name);
 
-            response = GoogleMusicService(Service.addplaylist, jsonString);
+            string response = GoogleMusicService(Service.createplaylist, jsonString);
 
-            if (String.IsNullOrEmpty(response))
+            if (!String.IsNullOrEmpty(response))
             {
-                playlist_id = null;
-            }
-            else
-            {
-                playlist_id = JsonConvert.DeserializeObject<AddPlaylistResponse>(response).id;
+                playlist_id = JsonConvert.DeserializeObject<CreatePlaylistResponse>(response).id;
             }
 
             return playlist_id;
         }
 
-        public void DeletePlaylist(string playlist_id)
+
+        public bool DeletePlaylist(string playlist_id)
         {
-            string response;
+            bool success = false;
             string jsonString = String.Format(@"{{""id"":""{0}""}}", playlist_id);
 
-            response = GoogleMusicService(Service.deleteplaylist, jsonString);
+            string response = GoogleMusicService(Service.deleteplaylist, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = true;
+            }
+
+            return success;
         }
 
-        public void RenamePlaylist(string playlist_id, string new_name)
-        {
-            string response;
-            string jsonString = String.Format(@"{{""playlistId"":""{0}"",""playlistName"":""{1}""}}", playlist_id, new_name);
 
-            response = GoogleMusicService(Service.modifyplaylist, jsonString);
+        public bool RenamePlaylist(string playlist_id, string new_name)
+        {
+            bool success = false;
+            string jsonString = String.Format(@"{{""id"":""{0}"",""name"":""{1}""}}", playlist_id, new_name);
+
+            string response = GoogleMusicService(Service.editplaylist, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = true;
+            }
+
+            return success;
         }
 
-        public void AddToPlaylist(string playlist_id, string song_id)
+
+        public bool AddToPlaylist(string playlist_id, string song_id)
         {
-            AddToPlaylist(playlist_id, new List<string> {song_id});
+            return AddToPlaylist(playlist_id, new string[] {song_id});
         }
 
-        public void AddToPlaylist(string playlist_id, List<string> song_ids)
+
+        public bool AddToPlaylist(string playlist_id, IEnumerable<string> song_ids)
         {
-            string response;
+            bool success = false;
             string song_refs = "";
 
             foreach (string song_id in song_ids)
@@ -265,29 +329,82 @@ namespace GoogleMusic
 
             string jsonString = String.Format(@"{{""playlistId"":""{0}"",""songRefs"":[{1}]}}", playlist_id, song_refs);
 
-            response = GoogleMusicService(Service.addtoplaylist, jsonString);
+            string response = GoogleMusicService(Service.addtoplaylist, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = true;
+            }
+
+            return success;
         }
 
-        public void ChangePlaylistOrder(string playlist_id, List<string> song_ids_moving, List<string> entry_ids_moving, string after_entry_id = "", string before_entry_id = "")
+
+        public bool ChangePlaylistOrder(string playlist_id, IEnumerable<string> song_ids_moving, IEnumerable<string> entry_ids_moving, string after_entry_id = "", string before_entry_id = "")
         {
-            string response;
-            string jsonString = String.Format(@"{{""playlistId"":""{0}"",""movedSongIds"":[""{1}""],""movedEntryIds"":[""{2}""],""afterEntryId"":""{3}"",""beforeEntryId"":""{4}""}}", playlist_id, String.Join("\",\"", song_ids_moving.ToArray()), String.Join("\",\"", entry_ids_moving.ToArray()), after_entry_id, before_entry_id);
+            bool success = false;
+            string jsonString = String.Format(@"{{""playlistId"":""{0}"",""movedSongIds"":[""{1}""],""movedEntryIds"":[""{2}""],""afterEntryId"":""{3}"",""beforeEntryId"":""{4}""}}", playlist_id, String.Join("\",\"", song_ids_moving), String.Join("\",\"", entry_ids_moving), after_entry_id, before_entry_id);
 
-            response = GoogleMusicService(Service.changeplaylistorder, jsonString);
+            string response = GoogleMusicService(Service.changeplaylistorder, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = true;
+            }
+
+            return success;
         }
 
-        public void DeleteSongs(List<string> song_ids)
+
+        public bool DeleteSongs(IEnumerable<string> song_ids)
         {
-            DeleteSongs("all", song_ids, new List<string>());
+            return DeleteSongs("all", song_ids, new string[] {});
         }
 
-        public void DeleteSongs(string playlist_id, List<string> song_ids, List<string> entry_ids)
+
+        public bool DeleteSongs(string playlist_id, IEnumerable<string> song_ids, IEnumerable<string> entry_ids)
         {
-            string response;
-            string jsonString = String.Format(@"{{""songIds"":[""{0}""],""entryIds"":[""{1}""],""listId"":""{2}""}}", String.Join("\",\"", song_ids.ToArray()), String.Join("\",\"", entry_ids.ToArray()), playlist_id);
+            bool success = false;
+            string jsonString = String.Format(@"{{""songIds"":[""{0}""],""entryIds"":[""{1}""],""listId"":""{2}""}}", String.Join("\",\"", song_ids), String.Join("\",\"", entry_ids), playlist_id);
 
-            response = GoogleMusicService(Service.deletesong, jsonString);
+            string response = GoogleMusicService(Service.deletesong, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = true;
+            }
+
+            return success;
         }
+
+
+        public bool ChangeSongMetadata(string song_id, Dictionary<MetaKey, object> metadata)
+        {
+            bool success = false;
+            string data = "";
+
+            foreach (MetaKey key in metadata.Keys)
+            {
+                if (Type.GetTypeCode(metadata[key].GetType()) == (TypeCode)(Convert.ToInt32(key) % 0x100))
+                {
+                    string value = metadata[key] is string ? "\"" + metadata[key].ToString() + "\"" : metadata[key].ToString();
+                    data += "\"" + key.ToString() + "\":" + value + ",";
+                }
+            }
+            data = data.TrimEnd(',');
+            
+            string jsonString = String.Format(@"{{""entries"":[{{""id"":""{0}"",{1}}}]}}", song_id, data);
+
+            string response = GoogleMusicService(Service.modifyentries, jsonString);
+
+            if (!String.IsNullOrEmpty(response))
+            {
+                success = JsonConvert.DeserializeObject<GenericServiceResponse>(response).success;
+            }
+
+            return success;
+        }
+
 
         private string GoogleMusicService(Service service, string jsonString = null)
         {
@@ -321,7 +438,8 @@ namespace GoogleMusic
             return response;
         }
 
-        public StreamUrl GetStreamUrl(string song_id)
+
+        public StreamUrl GetStreamUrl(string song_id, string preview_token = null)
         {
             HttpWebRequest request;
             string response;
@@ -330,7 +448,10 @@ namespace GoogleMusic
 
             try
             {
-                request = httpGetRequest("https://play.google.com/music/play" + String.Format("?songid={0}&pt=e", song_id));
+                if (!String.IsNullOrEmpty(preview_token))
+                    request = httpGetRequest("https://play.google.com/music/playpreview" + String.Format("?mode=streaming&preview={0}&tid={1}&pt=e", preview_token, song_id));
+                else
+                    request = httpGetRequest("https://play.google.com/music/play" + String.Format("?songid={0}&pt=e", song_id));
                 request.CookieContainer = _credentials.cookieJar;
                 response = httpResponse(request);
             }
@@ -343,6 +464,12 @@ namespace GoogleMusic
             return JsonConvert.DeserializeObject<StreamUrl>(response);
         }
 
+
+        public StreamUrl GetStreamUrl(Track track)
+        {
+            return GetStreamUrl(track.id, track.previewToken);
+        }
+
         #endregion
 
 
@@ -353,15 +480,18 @@ namespace GoogleMusic
             HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(url);
             request.Method = "GET";
             request.Proxy = Proxy;
+            request.UserAgent = _useragent;
 
             return request;
         }
+
 
         private HttpWebRequest httpPostRequest(string url, Dictionary<string, string> postParameters, CookieCollection cookies = null)
         {
             HttpWebRequest request = (HttpWebRequest)HttpWebRequest.Create(url);
             request.Method = "POST";
             request.Proxy = Proxy;
+            request.UserAgent = _useragent;
 
             string postData = "";
 
@@ -369,11 +499,12 @@ namespace GoogleMusic
             {
                 postData += HttpUtility.UrlEncode(key) + "=" + HttpUtility.UrlEncode(postParameters[key]) + "&";
             }
+            postData = postData.TrimEnd('&');
 
             byte[] data = Encoding.ASCII.GetBytes(postData);
 
             request.ContentType = "application/x-www-form-urlencoded";
-            request.ContentLength = data.Length - 1;
+            request.ContentLength = data.Length;
 
             if (cookies != null)
             {
@@ -387,12 +518,13 @@ namespace GoogleMusic
 
             using (Stream dataStream = request.GetRequestStream())
             {
-                dataStream.Write(data, 0, data.Length - 1);
+                dataStream.Write(data, 0, data.Length);
                 dataStream.Close();
             }
 
             return request;
         }
+
 
         private string httpResponse(HttpWebRequest request)
         {
@@ -431,7 +563,15 @@ namespace GoogleMusic
 
 
         [DataContract]
-        private class AddPlaylistResponse
+        private class GenericServiceResponse
+        {
+            [DataMember(Name = "success")]
+            public bool success { get; set; }
+        }
+
+
+        [DataContract]
+        private class CreatePlaylistResponse
         {
             [DataMember(Name = "id")]
             public String id { get; set; }
@@ -444,19 +584,42 @@ namespace GoogleMusic
 
         private enum Service
         {
-            addplaylist,
             addtoplaylist,
             changeplaylistorder,
+            createplaylist,
             deleteplaylist,
             deletesong,
+            editplaylist,
             fixsongmatch,
+            getstatus,
             imageupload,
             loadalltracks,
             loadplaylist,
+            loadsettings,
             modifyentries,
-            modifyplaylist,
+            modifysettings,
             multidownload,
-            search
+            recommendedforyou,
+            search,
+            sharedwithme
+        }
+
+
+        public enum MetaKey
+        {
+            album = TypeCode.String,
+            albumArtist = 0x100 + TypeCode.String,
+            artist = 0x200 + TypeCode.String,
+            composer = 0x300 + TypeCode.String,
+            disc = 0x400 + TypeCode.Int32,
+            genre = 0x500 + TypeCode.String,
+            name = 0x600 + TypeCode.String,
+            playCount = 0x700 + TypeCode.Int32,
+            rating = 0x800 + TypeCode.Int32,
+            totalDiscs = 0x900 + TypeCode.Int32,
+            totalTracks = 0xa00 + TypeCode.Int32,
+            track = 0xb00 + TypeCode.Int32,
+            year = 0xc00 + TypeCode.Int32
         }
 
     }

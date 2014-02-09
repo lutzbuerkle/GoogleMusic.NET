@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 
@@ -60,6 +61,8 @@ namespace GoogleMusic
         public string album { get; set; }
         [DataMember(Name = "lastPlayed")]
         internal long lastPlayedInternal { get; set; }
+		[DataMember(Name = "artistImageBaseUrl")]
+        public string artistImageBaseUrl { get; set; }
         [DataMember(Name = "type")]
         public int type { get; set; }
         [DataMember(Name = "recentTimestamp")]
@@ -74,6 +77,8 @@ namespace GoogleMusic
         public string title { get; set; }
         [DataMember(Name = "albumArtist")]
         public string albumArtist { get; set; }
+        [DataMember(Name = "artistMatchedId")]
+        public string artistMatchedId { get; set; }
         [DataMember(Name = "totalTracks")]
         public int totalTracks { get; set; }
         [DataMember(Name = "subjectToCuration")]
@@ -94,22 +99,24 @@ namespace GoogleMusic
         public int track { get; set; }
         [DataMember(Name = "durationMillis")]
         public int durationMillis { get; set; }
-        [DataMember(Name = "matchedId")]
-        public string matchedId { get; set; }
         [DataMember(Name = "albumArtUrl")]
         public string albumArtUrl { get { return (_albumArtUrl != null && !_albumArtUrl.StartsWith("http:")) ? "http:" + _albumArtUrl : _albumArtUrl; } set { _albumArtUrl = value; } }
         [DataMember(Name = "deleted")]
         public bool deleted { get; set; }
         [DataMember(Name = "url")]
         public string url { get; set; }
-        [DataMember(Name = "albumMatchedId")]
-        public string albumMatchedId { get; set; }
+        [DataMember(Name = "curatedByUser")]
+        public bool curatedByUser { get; set; }
+        [DataMember(Name = "previewToken")]
+        public string previewToken { get; set; }
         [DataMember(Name = "creationDate")]
         internal long creationDateInternal { get; set; }
         [DataMember(Name = "playCount")]
         public int playCount { get; set; }
         [DataMember(Name = "playlistEntryId")]
         public string playlistEntryId { get; set; }
+        [DataMember(Name = "curationSuggested")]
+        public bool curationSuggested { get; set; }
         [DataMember(Name = "bitrate")]
         public int bitrate { get; set; }
         [DataMember(Name = "rating")]
@@ -118,13 +125,21 @@ namespace GoogleMusic
         public string comment { get; set; }
         [DataMember(Name = "storeId")]
         public string storeId { get; set; }
-        [DataMember(Name = "artistMatchedId")]
-        public string artistMatchedId { get; set; }
+        [DataMember(Name = "explicitType")]
+        public int explicitType { get; set; }
+        [DataMember(Name = "matchedId")]
+        public string matchedId { get; set; }
+        [DataMember(Name = "albumMatchedId")]
+        public string albumMatchedId { get; set; }
+        [DataMember(Name = "albumPlaybackTimestamp")]
+        public long albumPlaybackTimestamp { get; set; }
+        [DataMember(Name = "lastPlaybackTimestamp")]
+        public long lastPlaybackTimestamp { get; set; }
 
         public DateTime lastPlayed { get { return ((long)(1e-6 * lastPlayedInternal)).FromUnixTime().ToLocalTime(); } }
 
-        public DateTime recentTimestamp { get { return ((long)(1e-6 * recentTimestampInternal)).FromUnixTime().ToLocalTime(); }
-        }
+        public DateTime recentTimestamp { get { return ((long)(1e-6 * recentTimestampInternal)).FromUnixTime().ToLocalTime(); } }
+
         public DateTime creationDate { get { return ((long)(1e-6 * creationDateInternal)).FromUnixTime().ToLocalTime(); } }
 
         public string albumArtistUnified { get { return String.IsNullOrEmpty(albumArtist) ? artist : albumArtist; } }
@@ -163,6 +178,11 @@ namespace GoogleMusic
                     if (_albumArtistSort == "") _albumArtistSort = _artistSort;
                 }
             }
+        }
+
+        public override int GetHashCode()
+        {
+            return id.GetHashCode();
         }
 
         public override string ToString()
@@ -213,7 +233,7 @@ namespace GoogleMusic
             if (result == 0)
             {
                 result = StringCompare(t1.albumArtistSort, t2.albumArtistSort);
-                if (result == 0) result = t1.track.CompareTo(t2.track);
+                if (result == 0) result = (1000 * t1.disc + t1.track).CompareTo(1000 * t2.disc + t2.track);
             }
 
             return result;
@@ -252,28 +272,38 @@ namespace GoogleMusic
         public void SortByAlbumArtist() { tracks.Sort(Track.CompareByAlbumArtist); }
         public void SortByAlbum() { tracks.Sort(Track.CompareByAlbum); }
 
-        [DataMember(Name = "title")]
-        public string title { get; set; }
         [DataMember(Name = "playlistId")]
         public string playlistId { get; set; }
+        [DataMember(Name = "title")]
+        public string title { get; set; }
         [DataMember(Name = "requestTime")]
         internal long requestTimeInternal { get; set; }
+        [DataMember(Name = "token")]
+    	public string token { get; set; }
         [DataMember(Name = "continuationToken")]
         public string continuationToken { get; set; }
         [DataMember(Name = "differentialUpdate")]
         public bool differentialUpdate { get; set; }
         [DataMember(Name = "playlist")]
         public List<Track> tracks { get; set; }
+        [DataMember(Name = "unavailableTrackCount")]
+    	public int unavailableTrackCount { get; set; }
         [DataMember(Name = "continuation")]
         public bool continuation { get; set; }
 
         public DateTime requestTime { get { return ((long)(1e-6 * requestTimeInternal)).FromUnixTime().ToLocalTime(); } }
+
+        public override int GetHashCode()
+        {
+            return playlistId.GetHashCode();
+        }
 
         public override string ToString()
         {
             return title;
         }
     }
+
 
     [DataContract]
     public class Playlists
@@ -287,22 +317,12 @@ namespace GoogleMusic
 
     #region Album
 
-    public class Album
+    public class Album : Playlist
     {
-        public Album()
-        {
-            tracks = new List<Track>();
-        }
-
-        public string albumArtist { get; set; }
-        public string album { get; set; }
-        public List<Track> tracks { get; set; }
-
-        public override string ToString()
-        {
-            return album;
-        }
+        public string albumArtist { get { return tracks == null ? null : tracks[0].albumArtistUnified; } }
+        public string albumArtistSort { get { return tracks == null ? null : tracks[0].albumArtistSort; } }
     }
+
 
     public class Albumlist
     {
@@ -311,32 +331,11 @@ namespace GoogleMusic
             albums = new List<Album>();
         }
 
-        public Albumlist(List<Track> tracklist) : this()
+        public Albumlist(List<Track> tracks) : this()
         {
-            List<Track> tracks = new List<Track>(tracklist);
-            tracks.Sort(Track.CompareByAlbum);
-
-            Album album = new Album();
-
-            foreach (Track track in tracks)
-            {
-                if (String.IsNullOrEmpty(album.album))
-                {
-                    album.albumArtist = track.albumArtistUnified;
-                    album.album = track.album;
-                }
-                if (track.album == album.album)
-                    album.tracks.Add(track);
-                else
-                {
-                    albums.Add(album);
-                    album = new Album();
-                    album.albumArtist = track.albumArtistUnified;
-                    album.album = track.album;
-                    album.tracks.Add(track);
-                }
-            }
-            if (!String.IsNullOrEmpty(album.album)) albums.Add(album);
+            albums = tracks.OrderBy(track => track, new Comparer<Track>(Track.CompareByAlbum))
+                           .GroupBy(track => new { track.album, track.albumArtistSort })
+                           .Select(groupedTracks => new Album { title = groupedTracks.Key.album, tracks = groupedTracks.ToList() }).ToList();
         }
 
         public Albumlist(Playlist playlist) : this(playlist.tracks) { }
@@ -349,21 +348,17 @@ namespace GoogleMusic
 
     #region AlbumArtist
 
-    public class AlbumArtist
+    public class AlbumArtist : Playlist
     {
-        public AlbumArtist()
-        {
-            tracks = new List<Track>();
-        }
-
-        public string albumArtist { get; set; }
-        public List<Track> tracks { get; set; }
+        public string albumArtist { get { return tracks == null ? null : tracks[0].albumArtistUnified; } }
+        public string albumArtistSort { get { return tracks == null ? null : tracks[0].albumArtistSort; } }
 
         public override string ToString()
         {
             return albumArtist;
         }
     }
+
 
     public class AlbumArtistlist
     {
@@ -372,30 +367,11 @@ namespace GoogleMusic
             albumArtists = new List<AlbumArtist>();
         }
 
-        public AlbumArtistlist(List<Track> tracklist) : this()
+        public AlbumArtistlist(List<Track> tracks) : this()
         {
-            List<Track> tracks = new List<Track>(tracklist);
-            tracks.Sort(Track.CompareByAlbumArtist);
-
-            AlbumArtist albumartist = new AlbumArtist();
-
-            foreach (Track track in tracks)
-            {
-                if (String.IsNullOrEmpty(albumartist.albumArtist))
-                {
-                    albumartist.albumArtist = track.albumArtistUnified;
-                }
-                if (track.albumArtistUnified == albumartist.albumArtist)
-                    albumartist.tracks.Add(track);
-                else
-                {
-                    albumArtists.Add(albumartist);
-                    albumartist = new AlbumArtist();
-                    albumartist.albumArtist = track.albumArtistUnified;
-                    albumartist.tracks.Add(track);
-                }
-            }
-            if (!String.IsNullOrEmpty(albumartist.albumArtist)) albumArtists.Add(albumartist);
+            albumArtists = tracks.OrderBy(track => track, new Comparer<Track>(Track.CompareByAlbumArtist))
+                                 .GroupBy(track => track.albumArtistSort)
+                                 .Select(groupedTracks => new AlbumArtist { title = groupedTracks.First().albumArtistUnified, tracks = groupedTracks.ToList() }).ToList();
         }
 
         public AlbumArtistlist(Playlist playlist) : this(playlist.tracks) { }
@@ -424,4 +400,64 @@ namespace GoogleMusic
         }
     }
 
+
+    [DataContract]
+    public class Status
+    {
+        [DataMember(Name = "availableTracks")]
+        public int availableTracks { get; set; }
+        [DataMember(Name = "uploadStatus")]
+        public List<UploadStatus> uploadStatus { get; set; }
+
+        [DataContract]
+        public class UploadStatus
+        {
+            [DataMember(Name = "client_total_song_count")]
+            public int clientTotalSongCount { get; set; }
+            [DataMember(Name = "current_total_uploaded_count")]
+            public int currentTotalUploadedCount { get; set; }
+            [DataMember(Name = "current_uploading_track")]
+            public string currentUploadingTrack { get; set; }
+            [DataMember(Name = "client_name")]
+            public string clientName { get; set; }
+        }
+    }
+
+
+    [DataContract]
+    public class Settings
+    {
+        //[DataMember(Name = "labs")]
+        //public List<Lab> labs { get; set; }
+        [DataMember(Name = "isCanceled")]
+        public bool isCanceled { get; set; }
+        [DataMember(Name = "expirationMillis")]
+        public long expirationMillis { get; set; }
+        [DataMember(Name = "isTrial")]
+        public bool isTrial { get; set; }
+        [DataMember(Name = "subscriptionNewsletter")]
+        public bool subscriptionNewsletter { get; set; }
+        //[DataMember(Name = "devices")]
+        //public List<Device> devices { get; set; }
+        [DataMember(Name = "isSubscription")]
+        public bool isSubscription { get; set; }
+        [DataMember(Name = "maxTracks")]
+        public int maxTracks { get; set; }
+    }
+    
+    
+    internal class Comparer<T> : IComparer<T>
+    {
+        private readonly Comparison<T> _comparison;
+
+        public Comparer(Comparison<T> comparison)
+        {
+            _comparison = comparison;
+        }
+
+        public int Compare(T x, T y)
+        {
+            return _comparison(x, y);
+        }
+    }
 }

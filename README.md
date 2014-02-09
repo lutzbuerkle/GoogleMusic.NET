@@ -34,9 +34,14 @@ foreach (Playlist playlist in playlists.playlists)
 ```
 
 
+GoogleMusic.NET is used by the following project
+
+* [Google Music for Jamcast](https://googlemusicforjamcast.codeplex.com/) adds Google Music browse and playback capabilities to [Jamcast](http://getjamcast.com/), a DLNA media server for Windows.
+
+
 ------------
 
 
-Copyright 2013, Lutz Bürkle.
+Copyright 2014, Lutz Bürkle.
 Licensed under the 3-clause BSD. See LICENSE.
 
