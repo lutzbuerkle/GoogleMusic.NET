@@ -33,16 +33,16 @@ using System.Text;
 
 namespace GoogleMusic
 {
-    internal class JsonConvert
+    internal class Json
     {
-        internal static T DeserializeObject<T>(String data)
+        internal static T Deserialize<T>(String data)
         {
             MemoryStream ms = new MemoryStream(Encoding.Unicode.GetBytes(data));
             DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T));
             return (T)serializer.ReadObject(ms);
         }
 
-        internal static string SerializeObject<T>(T obj)
+        internal static string Serialize<T>(T obj)
         {
             MemoryStream ms = new MemoryStream();
             DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T));

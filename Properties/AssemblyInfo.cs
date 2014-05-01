@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("")]
-[assembly: AssemblyCopyright("Copyright © 2013, Lutz Bürkle")]
+[assembly: AssemblyCopyright("Copyright © 2014, Lutz Bürkle")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -29,5 +29,5 @@ using System.Runtime.InteropServices;
 //      Buildnummer
 //      Revision
 //
-[assembly: AssemblyVersion("1.1.0.10")]
-[assembly: AssemblyFileVersion("1.1.0.10")]
+[assembly: AssemblyVersion("1.2.0.14")]
+[assembly: AssemblyFileVersion("1.2.0.14")]
