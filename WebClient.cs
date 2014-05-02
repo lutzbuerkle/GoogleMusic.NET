@@ -209,45 +209,49 @@ namespace GoogleMusic
             if (includeTracks)
             {
                 foreach (Playlist pl in playlists)
-                    pl.tracks = GetPlaylist(pl.id);
+                    pl.tracks = GetPlaylist(pl.id).tracks;
             }
 
             return playlists;
         }
 
 
-        public Tracklist GetPlaylist(string playlist_id)
+        public Playlist GetPlaylist(string playlist_id)
         {
-            Tracklist tracks = new Tracklist();
+            Playlist playlist = null;
             string jsArray = String.Format(@"[[""{0}"",1],[""{1}""]]", _sessionId, playlist_id);
 
             string response = GoogleMusicCall(Call.loaduserplaylist, jsArray);
 
             ArrayList array = (_parser.Parse(response)[1] as ArrayList)[0] as ArrayList;
 
-            foreach (ArrayList t in array)
+            if (array.Count > 0)
             {
-                Track track = new Track();
-                for (int i = 0; i < trackProperties.Length; i++)
+                playlist = new Playlist { id = playlist_id };
+                foreach (ArrayList t in array)
                 {
-                    string property = trackProperties[i];
-                    if (!String.IsNullOrEmpty(property))
+                    Track track = new Track();
+                    for (int i = 0; i < trackProperties.Length; i++)
                     {
-                        MethodInfo info = typeof(Track).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                        if (info != null && i < t.Count)
+                        string property = trackProperties[i];
+                        if (!String.IsNullOrEmpty(property))
                         {
-                            object ti = t[i];
-                            if (ti != null) ti = Convert.ChangeType(ti, info.GetParameters()[0].ParameterType);
-                            info.Invoke(track, new[] { ti });
+                            MethodInfo info = typeof(Track).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                            if (info != null && i < t.Count)
+                            {
+                                object ti = t[i];
+                                if (ti != null) ti = Convert.ChangeType(ti, info.GetParameters()[0].ParameterType);
+                                info.Invoke(track, new[] { ti });
+                            }
+                            else
+                                ThrowError(String.Format("Track property '{0}' not matched!", property));
                         }
-                        else
-                            ThrowError(String.Format("Track property '{0}' not matched!", property));
                     }
+                    playlist.tracks.Add(track);
                 }
-                tracks.Add(track);
             }
 
-            return tracks;
+            return playlist;
         }
 
 
