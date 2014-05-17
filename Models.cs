@@ -48,6 +48,13 @@ namespace GoogleMusic
         private string _albumNorm;
         private string _albumArtistNorm;
 
+        public Track()
+        {
+            albumArtRef = new List<Url>();
+            artistArtRef = new List<Url>();
+            artistId = new List<string>();
+        }
+
         [DataMember]
         public string id { get; set; }
         [DataMember]
@@ -116,9 +123,9 @@ namespace GoogleMusic
         public string artistNorm { get { _artistNorm = String.IsNullOrEmpty(_artistNorm) ? RearrangeArticle(artistUnified.ToLower()) : _artistNorm; return _artistNorm; } set { _artistNorm = RearrangeArticle(value); } }
         public string albumNorm { get { _albumNorm = String.IsNullOrEmpty(_albumNorm) ? album.ToLower() : _albumNorm; return _albumNorm; } set { _albumNorm = value; } }
         public string albumArtistNorm { get { _albumArtistNorm = String.IsNullOrEmpty(_albumArtistNorm) ? RearrangeArticle(albumArtistUnified.ToLower()) : _albumArtistNorm; return _albumArtistNorm; } set { _albumArtistNorm = RearrangeArticle(value); } }
-        public DateTime creationTimestamp { get { return ((long)(1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
-        public DateTime lastModifiedTimestamp { get { return ((long)(1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
-        public DateTime recentTimestamp { get { return ((long)(1e-6 * _recentTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime creationTimestamp { get { return ((1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime lastModifiedTimestamp { get { return ((1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime recentTimestamp { get { return ((1e-6 * _recentTimestamp)).FromUnixTime().ToLocalTime(); } }
         public string albumArtistUnified { get { return String.IsNullOrEmpty(albumArtist) ? artist : albumArtist; } }
         public string artistUnified { get { return String.IsNullOrEmpty(artist) ? albumArtist : artist; } }
 
@@ -205,12 +212,17 @@ namespace GoogleMusic
 
     public class Tracklist : List<Track>
     {
-        public Tracklist()
+        public Tracklist() : base()
         { }
 
         public Tracklist(IEnumerable<Track> tracks) : this()
         {
             this.AddRange(tracks);
+        }
+
+        public Track this[string id]
+        {
+            get { return this.Find(t => t.id == id); }
         }
 
         public void SortByArtist() { this.Sort(Track.CompareByArtist); }
@@ -256,9 +268,9 @@ namespace GoogleMusic
 
         public Tracklist tracks { get; set; }
 
-        public DateTime creationTimestamp { get { return ((long)(1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
-        public DateTime lastModifiedTimestamp { get { return ((long)(1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
-        public DateTime recentTimestamp { get { return ((long)(1e-6 * _recentTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime creationTimestamp { get { return ((1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime lastModifiedTimestamp { get { return ((1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime recentTimestamp { get { return ((1e-6 * _recentTimestamp)).FromUnixTime().ToLocalTime(); } }
 
         public override int GetHashCode()
         {
@@ -273,7 +285,20 @@ namespace GoogleMusic
 
 
     public class Playlists : List<Playlist>
-    { }
+    {
+        public Playlists() : base()
+        { }
+
+        public Playlists(IEnumerable<Playlist> playlists) : this()
+        {
+            this.AddRange(playlists);
+        }
+
+        public Playlist this[string id]
+        {
+            get { return this.Find(p => p.id == id); }
+        }
+    }
 
     #endregion
 
@@ -282,9 +307,14 @@ namespace GoogleMusic
 
     public class Album
     {
-        public string album { get { return tracks == null ? null : tracks[0].album; } }
-        public string albumArtist { get { return tracks == null ? null : tracks[0].albumArtistUnified; } }
-        public string albumArtistSort { get { return tracks == null ? null : tracks[0].albumArtistNorm; } }
+        public Album()
+        {
+            tracks = new Tracklist();
+        }
+
+        public string album { get { return tracks.Count > 0 ? tracks[0].album : null; } }
+        public string albumArtist { get { return tracks.Count > 0 ? tracks[0].albumArtistUnified : null; } }
+        public string albumArtistSort { get { return tracks.Count > 0 ? tracks[0].albumArtistNorm : null; } }
         public Tracklist tracks { get; set; }
 
         public override string ToString()
@@ -296,7 +326,7 @@ namespace GoogleMusic
 
     public class Albumlist : List<Album>
     {
-        public Albumlist()
+        public Albumlist() : base()
         { }
 
         public Albumlist(IEnumerable<Track> tracks) : this()
@@ -321,8 +351,13 @@ namespace GoogleMusic
 
     public class AlbumArtist
     {
-        public string albumArtist { get { return tracks == null ? null : tracks[0].albumArtistUnified; } }
-        public string albumArtistSort { get { return tracks == null ? null : tracks[0].albumArtistNorm; } }
+        public AlbumArtist()
+        {
+            tracks = new Tracklist();
+        }
+
+        public string albumArtist { get { return tracks.Count > 0 ? tracks[0].albumArtistUnified : null; } }
+        public string albumArtistSort { get { return tracks.Count > 0 ? tracks[0].albumArtistNorm : null; } }
         public Tracklist tracks { get; set; }
 
         public override string ToString()
@@ -334,7 +369,7 @@ namespace GoogleMusic
 
     public class AlbumArtistlist : List<AlbumArtist>
     {
-        public AlbumArtistlist()
+        public AlbumArtistlist() : base()
         { }
 
         public AlbumArtistlist(IEnumerable<Track> tracks) : this()
@@ -364,17 +399,7 @@ namespace GoogleMusic
     [DataContract]
     public class StreamUrl : Url
     {
-        public DateTime expires
-        {
-            get
-            {
-                Regex regex = new Regex(@"expire=(?<EPOCH>\d+)");
-                Match match = regex.Match(url);
-                long epoch = 0;
-                if (match.Success) epoch = Convert.ToInt64(match.Groups["EPOCH"].Value);
-                return epoch.FromUnixTime().ToLocalTime();
-            }
-        }
+        public DateTime expires { get; set; }
     }
 
 
@@ -408,18 +433,44 @@ namespace GoogleMusic
         //public List<Lab> labs { get; set; }
         [DataMember]
         public bool isCanceled { get; set; }
-        [DataMember]
-        public long expirationMillis { get; set; }
+        [DataMember(Name = "expirationMillis")]
+        private long _expirationMillis { get; set; }
         [DataMember]
         public bool isTrial { get; set; }
         [DataMember]
         public bool subscriptionNewsletter { get; set; }
-        //[DataMember]
-        //public List<Device> devices { get; set; }
+        [DataMember]
+        public List<Device> devices { get; set; }
         [DataMember]
         public bool isSubscription { get; set; }
         [DataMember]
         public int maxTracks { get; set; }
+
+        public DateTime expiration { get { return ((1e-3 * _expirationMillis)).FromUnixTime().ToLocalTime(); } }
+
+        [DataContract]
+        public class Device
+        {
+            [DataMember]
+            public string id { get; set; }
+            [DataMember]
+            public string model { get; set; }
+            [DataMember]
+            public string manufacturer { get; set; }
+            [DataMember]
+            public string name { get; set; }
+            [DataMember]
+            public string carrier { get; set; }
+            [DataMember]
+            public string type { get; set; }
+            [DataMember(Name = "date")]
+            private long _date { get; set; }
+            [DataMember(Name = "lastUsedMs")]
+            private long _lastUsedMs { get; set; }
+
+            public DateTime date { get { return ((1e-3 * _date)).FromUnixTime().ToLocalTime(); } }
+            public DateTime lastUsed { get { return ((1e-3 * _lastUsedMs)).FromUnixTime().ToLocalTime(); } }
+        }
     }
     
     

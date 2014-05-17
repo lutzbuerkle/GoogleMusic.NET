@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2013, Lutz Bürkle
+Copyright (c) 2014, Lutz Bürkle
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,16 +32,17 @@ namespace GoogleMusic
 {
     internal static class ExtensionMethods
     {
-        internal static DateTime FromUnixTime(this long unixTime)
+        internal static DateTime FromUnixTime(this double unixTime)
         {
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             return epoch.AddSeconds(unixTime);
         }
 
-        internal static long ToUnixTime(this DateTime date)
+
+        internal static double ToUnixTime(this DateTime date)
         {
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            return Convert.ToInt64((date.ToUniversalTime() - epoch).TotalSeconds);
+            return Convert.ToDouble((date.ToUniversalTime() - epoch).TotalSeconds);
         }
     }
 }

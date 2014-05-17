@@ -29,10 +29,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.JsArray;
+using System.Text.RegularExpressions;
 
 namespace GoogleMusic
 {
@@ -128,7 +130,7 @@ namespace GoogleMusic
 
             if (!String.IsNullOrEmpty(response))
             {
-                settings = Json.Deserialize<Settings>(response);
+                settings = Json.Deserialize<GetSettingsResponse>(response).settings;
             }
 
             return settings;
@@ -208,15 +210,15 @@ namespace GoogleMusic
 
             if (includeTracks)
             {
-                foreach (Playlist pl in playlists)
-                    pl.tracks = GetPlaylist(pl.id).tracks;
+                foreach (Playlist playlist in playlists)
+                    playlist.tracks = GetPlaylistEntries(playlist.id).tracks;
             }
 
             return playlists;
         }
 
 
-        public Playlist GetPlaylist(string playlist_id)
+        public Playlist GetPlaylistEntries(string playlist_id)
         {
             Playlist playlist = null;
             string jsArray = String.Format(@"[[""{0}"",1],[""{1}""]]", _sessionId, playlist_id);
@@ -333,7 +335,7 @@ namespace GoogleMusic
         public bool ChangePlaylistOrder(string playlist_id, IEnumerable<string> song_ids_moving, IEnumerable<string> entry_ids_moving, string after_entry_id = "", string before_entry_id = "")
         {
             bool success = false;
-            string jsonString = String.Format(@"{{""playlistId"":""{0}"",""movedSongIds"":[""{1}""],""movedEntryIds"":[""{2}""],""afterEntryId"":""{3}"",""beforeEntryId"":""{4}""}}", playlist_id, String.Join("\",\"", song_ids_moving), String.Join("\",\"", entry_ids_moving), after_entry_id, before_entry_id);
+            string jsonString = String.Format(@"{{""playlistId"":""{0}"",""movedSongIds"":[""{1}""],""movedEntryIds"":[""{2}""],""afterEntryId"":""{3}"",""beforeEntryId"":""{4}""}}", playlist_id, String.Join("\",\"", song_ids_moving.ToArray()), String.Join("\",\"", entry_ids_moving.ToArray()), after_entry_id, before_entry_id);
 
             string response = GoogleMusicService(Service.changeplaylistorder, jsonString);
 
@@ -355,7 +357,7 @@ namespace GoogleMusic
         public bool DeleteSongs(string playlist_id, IEnumerable<string> song_ids, IEnumerable<string> entry_ids)
         {
             bool success = false;
-            string jsonString = String.Format(@"{{""songIds"":[""{0}""],""entryIds"":[""{1}""],""listId"":""{2}""}}", String.Join("\",\"", song_ids), String.Join("\",\"", entry_ids), playlist_id);
+            string jsonString = String.Format(@"{{""songIds"":[""{0}""],""entryIds"":[""{1}""],""listId"":""{2}""}}", String.Join("\",\"", song_ids.ToArray()), String.Join("\",\"", entry_ids.ToArray()), playlist_id);
 
             string response = GoogleMusicService(Service.deletesong, jsonString);
 
@@ -481,10 +483,15 @@ namespace GoogleMusic
             
         public StreamUrl GetStreamUrl(string song_id, string preview_token = null)
         {
+            StreamUrl streamUrl = null;
             HttpWebRequest request;
             string response;
 
-            if (!LoginStatus) return null;
+            if (!LoginStatus)
+            {
+                ThrowError("Not logged in: Obtaining Stream Url failed!");
+                return null;
+            }
 
             try
             {
@@ -501,7 +508,16 @@ namespace GoogleMusic
                 return null;
             }
 
-            return Json.Deserialize<StreamUrl>(response);
+            streamUrl = Json.Deserialize<StreamUrl>(response);
+
+            Match match = Regex.Match(streamUrl.url, @"expire=(?<EPOCH>\d+)");
+            if (match.Success)
+            {
+                double epoch = Convert.ToDouble(match.Groups["EPOCH"].Value); 
+                streamUrl.expires = epoch.FromUnixTime().ToLocalTime();
+            }
+
+            return streamUrl;
         }
 
 
@@ -531,19 +547,26 @@ namespace GoogleMusic
         [DataContract]
         private class GenericServiceResponse
         {
-            [DataMember(Name = "success")]
+            [DataMember]
             public bool success { get; set; }
         }
 
 
         [DataContract]
+        private class GetSettingsResponse
+        {
+            [DataMember]
+            public Settings settings { get; set; }
+        }
+
+        [DataContract]
         private class CreatePlaylistResponse
         {
-            [DataMember(Name = "id")]
-            public String id { get; set; }
-            [DataMember(Name = "title")]
-            public String title { get; set; }
-            [DataMember(Name = "success")]
+            [DataMember]
+            public string id { get; set; }
+            [DataMember]
+            public string title { get; set; }
+            [DataMember]
             public bool success { get; set; }
         }
 
