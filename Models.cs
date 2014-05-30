@@ -129,9 +129,9 @@ namespace GoogleMusic
         public string albumArtistUnified { get { return String.IsNullOrEmpty(albumArtist) ? artist : albumArtist; } }
         public string artistUnified { get { return String.IsNullOrEmpty(artist) ? albumArtist : artist; } }
 
-        private string _albumArtUrl { set { if (value == null) albumArtRef = null; else { albumArtRef = new List<Url>(); albumArtRef.Add(new Url { url = value.StartsWith("http:") ? value : "http:" + value }); } } }
-        private string _artistArtUrl { set { if (value == null) artistArtRef = null; else { artistArtRef = new List<Url>(); artistArtRef.Add(new Url { url = value.StartsWith("http:") ? value : "http:" + value }); } } }
-        private string _artistId { set { artistId = new List<string>(); artistId.Add(value); } }
+        private string _albumArtUrl { set { albumArtRef = new List<Url>(); if (value != null) albumArtRef.Add(new Url { url = value.StartsWith("http:") ? value : "http:" + value }); } }
+        private string _artistArtUrl { set { artistArtRef = new List<Url>(); if (value != null) artistArtRef.Add(new Url { url = value.StartsWith("http:") ? value : "http:" + value }); } }
+        private string _artistId { set { artistId = new List<string>(); if (value != null) artistId.Add(value); } }
         
         public override int GetHashCode()
         {
