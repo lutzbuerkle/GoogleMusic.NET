@@ -34,7 +34,7 @@ using System.Collections;
 using System.Globalization;
 using System.Text;
 
-namespace System.Text.JsArray
+namespace Utilities.JsArray
 {
     public class JsArray
     {

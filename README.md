@@ -1,7 +1,7 @@
 GoogleMusic.NET
 ===============
 
-GoogleMusic.NET is an unofficial API for Google Music for the .NET framework. It is written in C#.
+GoogleMusic.NET is an unofficial API for Google Music for the .NET framework. It is written in C#. GoogleMusic.NET is partially derived from [gmusicapi](https://github.com/simon-weber/Unofficial-Google-Music-API) by Simon Weber. It is not supported nor endorsed by Google.
 
 
 ```csharp

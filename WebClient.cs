@@ -33,8 +33,11 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Runtime.Serialization;
-using System.Text.JsArray;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Utilities.JsArray;
 
 namespace GoogleMusic
 {
@@ -162,6 +165,7 @@ namespace GoogleMusic
             if (!String.IsNullOrEmpty(response))
             {
                 tracks = new Tracklist();
+                tracks.timestamp = DateTime.Now;
                 while ((index = response.IndexOf("['slat_process']", index)) > 0)
                 {
                     index += 17;
@@ -208,6 +212,7 @@ namespace GoogleMusic
                 ArrayList array = (_parser.Parse(response)[1] as ArrayList)[0] as ArrayList;
 
                 playlists = new Playlists();
+                playlists.timestamp = DateTime.Now;
                 foreach (ArrayList pl in array)
                 {
                     Playlist playlist = new Playlist();
@@ -527,11 +532,12 @@ namespace GoogleMusic
         }
 
             
-        public StreamUrl GetStreamUrl(string track_id)
+        public List<StreamUrl> GetStreamUrl(string track_id)
         {
-            StreamUrl streamUrl = null;
+            List<StreamUrl> streamUrls = new List<StreamUrl>();
             HttpWebRequest request;
             string response;
+            const string key = "27f7313e-f75d-445a-ac99-56386a5fe879";
 
             if (String.IsNullOrEmpty(track_id)) return null;
 
@@ -541,28 +547,96 @@ namespace GoogleMusic
                 return null;
             }
 
+            HMACSHA1 hmac_sha1 = new HMACSHA1(Encoding.ASCII.GetBytes(key));
+
+            byte[] hash = hmac_sha1.ComputeHash(Encoding.ASCII.GetBytes(track_id + _sessionId));
+            string sig = Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").Replace("=", ".");
+
             try
             {
-                request = httpGetRequest("https://play.google.com/music/play" + String.Format("?songid={0}&pt=e", track_id));
+                if (track_id.IsGuid())
+                {
+                    request = httpGetRequest("https://play.google.com/music/play" + String.Format("?u=0&slt={0}&songid={1}&sig={2}&pt=e", _sessionId, track_id, sig));
+                }
+                else
+                {
+                    request = httpGetRequest("https://play.google.com/music/play" + String.Format("?u=0&slt={0}&mjck={1}&sig={2}&pt=e", _sessionId, track_id, sig));
+                }
                 request.CookieContainer = _credentials.cookieJar;
                 response = httpResponse(request);
             }
-            catch(Exception error)
+            catch (Exception error)
             {
-                ThrowError("Obtaining Stream Url failed!", error);
+                ThrowError("Obtaining stream Url failed!", error);
                 return null;
             }
 
-            streamUrl = Json.Deserialize<StreamUrl>(response);
-
-            Match match = Regex.Match(streamUrl.url, @"expire=(?<EPOCH>\d+)");
-            if (match.Success)
+            foreach (string url in Json.Deserialize<StreamUrlResponse>(response).urls)
             {
-                double epoch = Convert.ToDouble(match.Groups["EPOCH"].Value); 
-                streamUrl.expires = epoch.FromUnixTime().ToLocalTime();
+                DateTime expires = new DateTime();
+                Match match = Regex.Match(url, @"expire=(?<EPOCH>\d+)");
+                if (match.Success)
+                {
+                    double epoch = Convert.ToDouble(match.Groups["EPOCH"].Value);
+                    expires = epoch.FromUnixTime().ToLocalTime();
+                }
+                streamUrls.Add(new StreamUrl() { url = url, expires = expires });
             }
 
-            return streamUrl;
+            return streamUrls;
+        }
+
+
+        public byte[] GetStreamAudio(IEnumerable<StreamUrl> streamUrls)
+        {
+            if (streamUrls == null) throw new ArgumentNullException("Argument 'streamUrls' in GetStreamAudio must not be NULL!");
+
+            byte[] audio = { };
+            List<StreamUrl> urls = streamUrls.ToList();
+
+            if (urls.Count == 1)
+                audio = GetStreamAudio(urls[0]);
+            else if (urls.Count > 1)
+            {
+                try
+                {
+                    object locker = new object();
+                    byte[][] audioParts = new byte[urls.Count][];
+                    Parallel.For(0, urls.Count, new ParallelOptions { MaxDegreeOfParallelism = 5 }, i =>
+                    {
+                        using (WebClient client = new WebClient())
+                        {
+                            client.Proxy = Proxy;
+                            client.Headers.Add("user-agent", _useragent);
+
+                            byte[] audioPart = client.DownloadData(urls[i].url);
+                            lock (locker)
+                            {
+                                audioParts[i] = audioPart;
+                            }
+                        }
+                    });
+                    Match match = Regex.Match(urls.Last().url, @"range=(\d+)\-(\d+)");
+                    int size = Convert.ToInt32(match.Groups[2].Value);
+                    audio = new byte[size + 1];
+                    for (int i = 0; i < urls.Count; i++)
+                    {
+                        match = Regex.Match(urls[i].url, @"range=(\d+)\-(\d+)");
+                        int start = Convert.ToInt32(match.Groups[1].Value);
+                        int stop = Convert.ToInt32(match.Groups[2].Value);
+                        if (audio.Length < stop + 1)
+                            Array.Resize<byte>(ref audio, stop + 1);
+                        Buffer.BlockCopy(audioParts[i], 0, audio, start, audioParts[i].Length);
+                    }
+                }
+                catch (Exception error)
+                {
+                    ThrowError("Retrieving audio stream failed!", error);
+                    audio = new byte[] { };
+                }
+            }
+
+            return audio;
         }
 
         #endregion
@@ -598,6 +672,7 @@ namespace GoogleMusic
             public Settings settings { get; set; }
         }
 
+
         [DataContract]
         private class CreatePlaylistResponse
         {
@@ -607,6 +682,16 @@ namespace GoogleMusic
             public string title { get; set; }
             [DataMember]
             public bool success { get; set; }
+        }
+
+
+        [DataContract]
+        private class StreamUrlResponse
+        {
+            [DataMember]
+            public string url { get { return String.Empty; } set { urls = new List<string>(); urls.Add(value); } }
+            [DataMember]
+            public List<string> urls { get; set; }
         }
 
 

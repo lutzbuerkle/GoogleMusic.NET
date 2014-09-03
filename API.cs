@@ -44,7 +44,7 @@ namespace GoogleMusic
         public delegate void ErrorHandlerDelegate(string message, Exception error);
 
         public WebProxy Proxy { get; set; }
-        public ErrorHandlerDelegate ErrorHandler { get; set; }
+        public event ErrorHandlerDelegate ErrorHandler;
 
 
         public GoogleMusicClient()
@@ -136,6 +136,31 @@ namespace GoogleMusic
         }
 
         #endregion
+
+
+        public byte[] GetStreamAudio(StreamUrl url)
+        {
+            byte[] audio = { };
+
+            try
+            {
+                using (WebClient client = new WebClient())
+                {
+                    client.Proxy = Proxy;
+                    client.Headers.Add("user-agent", _useragent);
+
+                    audio = client.DownloadData(url.url);
+                }
+
+            }
+            catch (Exception error)
+            {
+                ThrowError("Retrieving audio stream failed!", error);
+                audio = new byte[] { };
+            }
+
+            return audio;
+        }
 
 
         #region HttpRequests

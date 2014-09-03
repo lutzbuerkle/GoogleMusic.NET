@@ -113,6 +113,8 @@ namespace GoogleMusic
                         token = null;
                     }
                 }
+                tracks = new Tracklist(tracks.FindAll(t => t.deleted == false));
+                tracks.timestamp = DateTime.Now;
             }
 
             return tracks;
@@ -138,8 +140,16 @@ namespace GoogleMusic
                 {
                     Playlists playlistEntries = GetPlaylistEntries();
                     foreach (Playlist playlist in playlists)
-                        playlist.tracks = playlistEntries[playlist.id].tracks;
+                    {
+                        Playlist p = playlistEntries[playlist.id];
+                        if (p == null)
+                            playlist.tracks = new Tracklist();
+                        else
+                            playlist.tracks = p.tracks;
+                    }
                 }
+
+                playlists.timestamp = DateTime.Now;
             }
 
             return playlists;
@@ -159,6 +169,8 @@ namespace GoogleMusic
             else
             {
                 Plentryfeed plentryfeed = Json.Deserialize<Plentryfeed>(response);
+                foreach (Plentryfeed.Item item in plentryfeed.data.items)
+                    if (item.track == null) item.track = new Track { id = item.trackId };
                 List<Plentryfeed.Item> items = plentryfeed.data.items.FindAll(i => i.deleted == false);
                 var groupedPlaylists = from item in items
                                        orderby item.absolutePosition
@@ -171,7 +183,76 @@ namespace GoogleMusic
         }
 
 
-        private string GoogleMusicService(Service service, string jsonString = null)
+        public StreamUrl GetStreamUrl(string track_id, ulong device_id)
+        {
+            HttpWebRequest request;
+            StreamUrl streamUrl = new StreamUrl();
+            byte[] _s1 = Convert.FromBase64String("VzeC4H4h+T2f0VI180nVX8x+Mb5HiTtGnKgH52Otj8ZCGDz9jRWyHb6QXK0JskSiOgzQfwTY5xgLLSdUSreaLVMsVVWfxfa8Rw==");
+            byte[] _s2 = Convert.FromBase64String("ZAPnhUkYwQ6y5DdQxWThbvhJHN8msQ1rqJw0ggKdufQjelrKuiGGJI30aswkgCWTDyHkTGK9ynlqTkJ5L4CiGGUabGeo8M6JTQ==");
+
+            if (String.IsNullOrEmpty(track_id)) return null;
+
+            if (!LoginStatus)
+            {
+                ThrowError("Not logged in: Obtaining Stream Url failed!");
+                return null;
+            }
+
+            byte[] key = new byte[_s1.Length];
+            for (int i = 0; i < _s1.Length; i++)
+                key[i] = (byte)(_s1[i] ^ _s2[i]);
+
+            string salt = (1000.0 * DateTime.UtcNow.ToUnixTime()).ToString("F0");
+            HMACSHA1 hmac_sha1 = new HMACSHA1(key);
+
+            byte[] hash = hmac_sha1.ComputeHash(Encoding.ASCII.GetBytes(track_id + salt));
+            string sig = Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").Replace("=", ".");
+            sig = sig.Remove(sig.Length - 1);
+
+            try
+            {
+                if (track_id.IsGuid())
+                    request = httpGetRequest("https://android.clients.google.com/music/mplay" + String.Format("?songid={0}&opt=hi&net=wifi&pt=e&slt={1}&sig={2}", track_id, salt, sig));
+                else
+                    request = httpGetRequest("https://android.clients.google.com/music/mplay" + String.Format("?mjck={0}&opt=hi&net=wifi&pt=e&slt={1}&sig={2}", track_id, salt, sig));
+                request.Headers["Authorization"] = String.Format("GoogleLogin Auth={0}", _credentials.Auth);
+                request.Headers["X-Device-ID"] = device_id.ToString();
+                request.AllowAutoRedirect = false;
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                {
+                    DateTime expires;
+                    if (DateTime.TryParseExact(response.Headers["Expires"], "ddd, dd MMM yyyy HH:mm:ss GMT", CultureInfo.InvariantCulture, DateTimeStyles.None, out expires))
+                        streamUrl.expires = expires;
+                    streamUrl.url = response.Headers["Location"];
+                }
+            }
+            catch (Exception error)
+            {
+                ThrowError("Obtaining Stream Url failed!", error);
+                return null;
+            }
+
+            return streamUrl;
+        }
+
+
+        public StreamUrl GetStreamUrl(string track_id, string device_id)
+        {
+            ulong id;
+
+            if (String.IsNullOrEmpty(device_id)) return null;
+            
+            if (device_id.StartsWith("0x"))
+                device_id = device_id.Substring(2);
+
+            if (UInt64.TryParse(device_id, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out id))
+                return GetStreamUrl(track_id, id);
+            else
+                return null;
+        }
+
+
+        private string GoogleMusicService(Service service, string jsonString = null, DateTime updateFrom = new DateTime())
         {
             Dictionary<string, string> header = new Dictionary<string, string>();
             string response;
@@ -182,11 +263,14 @@ namespace GoogleMusic
                 return null;
             }
 
+            double updatedMin = 1e6 * updateFrom.ToUnixTime();
+            if (updatedMin < 0) updatedMin = 0;
+
             header.Add("Authorization", String.Format("GoogleLogin Auth={0}", _credentials.Auth));
 
             try
             {
-                response = httpResponse(httpPostRequest("https://www.googleapis.com/sj/v1.4/" + service.ToString() + String.Format("?alt=json&include-tracks=true&updated-min={0}", 0), jsonString, "application/json", header));
+                response = httpResponse(httpPostRequest("https://www.googleapis.com/sj/v1.5/" + service.ToString() + String.Format("?alt=json&include-tracks=true&updated-min={0}", Convert.ToUInt64(updatedMin)), jsonString, "application/json", header));
             }
             catch (Exception error)
             {

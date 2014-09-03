@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 using System;
+using System.Text.RegularExpressions;
 
 namespace GoogleMusic
 {
@@ -43,6 +44,25 @@ namespace GoogleMusic
         {
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             return Convert.ToDouble((date.ToUniversalTime() - epoch).TotalSeconds);
+        }
+
+        internal static bool IsGuid(this string input)
+        {
+            if (input == null) return false;
+
+#if (NET40 || NET45 )
+            Guid guid;
+            return Guid.TryParse(input, out guid);
+#else
+            input = input.Trim();
+            Match match = Regex.Match(input, @"^[A-Fa-f0-9]{32}$"
+                                           + @"|^[A-Fa-f0-9]{8}-([A-Fa-f0-9]{4}-){3}[A-Fa-f0-9]{12}$"
+                                           + @"|^{[A-Fa-f0-9]{8}-([A-Fa-f0-9]{4}-){3}[A-Fa-f0-9]{12}}$"
+                                           + @"|^\([A-Fa-f0-9]{8}-([A-Fa-f0-9]{4}-){3}[A-Fa-f0-9]{12}\)$"
+                                           + @"|^{\s*0+[xX][A-Fa-f0-9]{8}\s*,\s*(0+[xX][A-Fa-f0-9]{4}\s*,\s*){2}{\s*(0+[xX][A-Fa-f0-9]{2}\s*,\s*){7}0+[xX][A-Fa-f0-9]{2}\s*}\s*}$");
+            return match.Success;
+#endif
+
         }
     }
 }

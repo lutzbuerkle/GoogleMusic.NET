@@ -43,6 +43,7 @@ namespace GoogleMusic
     {
         private static readonly Regex _regex = new Regex(@"^(?<ARTICLE>[T|t]he)\s+(?<BODY>.+)", RegexOptions.Compiled);
 
+        private string _id;
         private string _titleNorm;
         private string _artistNorm;
         private string _albumNorm;
@@ -56,7 +57,7 @@ namespace GoogleMusic
         }
 
         [DataMember]
-        public string id { get; set; }
+        public string id { get { _id = String.IsNullOrEmpty(_id) ? storeId : _id; return _id; } set { _id = value; } }
         [DataMember]
     	public string clientId { get; set; }
         [DataMember(Name = "creationTimestamp")]
@@ -225,6 +226,8 @@ namespace GoogleMusic
             get { return this.Find(t => t.id == id); }
         }
 
+        public DateTime timestamp { get; set; }
+
         public void SortByArtist() { this.Sort(Track.CompareByArtist); }
         public void SortByAlbumArtist() { this.Sort(Track.CompareByAlbumArtist); }
         public void SortByAlbum() { this.Sort(Track.CompareByAlbum); }
@@ -298,6 +301,8 @@ namespace GoogleMusic
         {
             get { return this.Find(p => p.id == id); }
         }
+
+        public DateTime timestamp { get; set; }
     }
 
     #endregion
@@ -307,14 +312,30 @@ namespace GoogleMusic
 
     public class Album
     {
+        private string _album;
+        private string _albumArtist;
+        private string _albumArtistSort;
+
         public Album()
         {
             tracks = new Tracklist();
         }
 
-        public string album { get { return tracks.Count > 0 ? tracks[0].album : null; } }
-        public string albumArtist { get { return tracks.Count > 0 ? tracks[0].albumArtistUnified : null; } }
-        public string albumArtistSort { get { return tracks.Count > 0 ? tracks[0].albumArtistNorm : null; } }
+        public string album
+        {
+            get { _album = _album == null && tracks.Count > 0 ? tracks[0].album : _album; return _album; }
+            set { _album = value; }
+        }
+        public string albumArtist
+        {
+            get { _albumArtist = _albumArtist == null && tracks.Count > 0 ? tracks[0].albumArtistUnified : _albumArtist; return _albumArtist; }
+            set { _albumArtist = value; }
+        }
+        public string albumArtistSort
+        {
+            get { _albumArtistSort = _albumArtistSort == null && tracks.Count > 0 ? tracks[0].albumArtistNorm : _albumArtistSort; return _albumArtistSort; }
+            set { _albumArtistSort = value; }
+        }
         public Tracklist tracks { get; set; }
 
         public override string ToString()
@@ -332,8 +353,8 @@ namespace GoogleMusic
         public Albumlist(IEnumerable<Track> tracks) : this()
         {
             List<Album> albums = tracks.OrderBy(track => track, new Comparer<Track>(Track.CompareByAlbum))
-                                       .GroupBy(track => new { track.album, albumArtistSort = track.albumArtistNorm })
-                                       .Select(groupedTracks => new Album { tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
+                                       .GroupBy(track => new { track.album, track.albumArtistNorm })
+                                       .Select(groupedTracks => new Album { album = groupedTracks.Key.album, albumArtistSort = groupedTracks.Key.albumArtistNorm, tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
             this.AddRange(albums);
         }
 
@@ -351,13 +372,24 @@ namespace GoogleMusic
 
     public class AlbumArtist
     {
+        private string _albumArtist;
+        private string _albumArtistSort;
+
         public AlbumArtist()
         {
             tracks = new Tracklist();
         }
 
-        public string albumArtist { get { return tracks.Count > 0 ? tracks[0].albumArtistUnified : null; } }
-        public string albumArtistSort { get { return tracks.Count > 0 ? tracks[0].albumArtistNorm : null; } }
+        public string albumArtist
+        {
+            get { _albumArtist = _albumArtist == null && tracks.Count > 0 ? tracks[0].albumArtistUnified : _albumArtist; return _albumArtist; }
+            set { _albumArtist = value; }
+        }
+        public string albumArtistSort
+        {
+            get { _albumArtistSort = _albumArtistSort == null && tracks.Count > 0 ? tracks[0].albumArtistNorm : _albumArtistSort; return _albumArtistSort; }
+            set { _albumArtistSort = value; }
+        }
         public Tracklist tracks { get; set; }
 
         public override string ToString()
@@ -376,7 +408,7 @@ namespace GoogleMusic
         {
             List<AlbumArtist> albumArtists = tracks.OrderBy(track => track, new Comparer<Track>(Track.CompareByAlbumArtist))
                                                    .GroupBy(track => track.albumArtistNorm)
-                                                   .Select(groupedTracks => new AlbumArtist { tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
+                                                   .Select(groupedTracks => new AlbumArtist { albumArtistSort = groupedTracks.Key, tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
             this.AddRange(albumArtists);
         }
 
@@ -429,8 +461,6 @@ namespace GoogleMusic
     [DataContract]
     public class Settings
     {
-        //[DataMember]
-        //public List<Lab> labs { get; set; }
         [DataMember]
         public bool isCanceled { get; set; }
         [DataMember(Name = "expirationMillis")]
