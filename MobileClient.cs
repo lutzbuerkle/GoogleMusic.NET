@@ -81,11 +81,11 @@ namespace GoogleMusic
 
         #region GoogleMusicServices
 
-        public Tracklist GetAllTracks()
+        public Tracklist GetTracks(DateTime updateFrom)
         {
             Tracklist tracks;
 
-            string response = GoogleMusicService(Service.trackfeed);
+            string response = GoogleMusicService(Service.trackfeed, null, updateFrom);
 
             if (String.IsNullOrEmpty(response))
             {
@@ -94,6 +94,9 @@ namespace GoogleMusic
             else
             {
                 Trackfeed trackfeed = Json.Deserialize<Trackfeed>(response);
+
+                if (trackfeed.data == null) return new Tracklist();
+
                 tracks = trackfeed.data.items;
 
                 string token = trackfeed.nextPageToken;
@@ -113,11 +116,56 @@ namespace GoogleMusic
                         token = null;
                     }
                 }
-                tracks = new Tracklist(tracks.FindAll(t => t.deleted == false));
-                tracks.timestamp = DateTime.Now;
             }
 
             return tracks;
+        }
+
+
+        public Tracklist GetAllTracks()
+        {
+            Tracklist tracks = GetTracks(new DateTime());
+
+            if (tracks != null)
+            {
+                tracks = new Tracklist(tracks.FindAll(t => t.deleted == false));
+                tracks.lastUpdatedTimestamp = DateTime.Now;
+            }
+
+            return tracks;
+        }
+
+
+        public bool UpdateTracks(ref Tracklist tracksInput)
+        {
+            bool updated = false;
+
+            if (tracksInput != null)
+            {
+                Tracklist newTracks = GetTracks(tracksInput.lastUpdatedTimestamp);
+
+                if (newTracks != null)
+                {
+                    if (newTracks.Count > 0)
+                    {
+                        Tracklist tracks = new Tracklist(tracksInput);
+                        foreach (Track newTrack in newTracks)
+                        {
+                            Track removeTrack = tracks[newTrack.id];
+                            if (removeTrack != null)
+                                tracks.Remove(removeTrack);
+                            if (newTrack.deleted == false)
+                                tracks.Add(newTrack);
+                        }
+                        tracksInput = tracks;
+                        updated = true;
+                    }
+
+                    tracksInput.lastUpdatedTimestamp = DateTime.Now;
+                }
+            }
+
+            return updated;
         }
 
 
@@ -134,22 +182,28 @@ namespace GoogleMusic
             else
             {
                 Playlistfeed playlistfeed = Json.Deserialize<Playlistfeed>(response);
+
+                if (playlistfeed.data == null) return new Playlists();
+
                 playlists = new Playlists(playlistfeed.data.items.FindAll(p => p.deleted == false));
+                playlists.lastUpdatedTimestamp = DateTime.Now;
 
                 if (includeTracks)
                 {
                     Playlists playlistEntries = GetPlaylistEntries();
-                    foreach (Playlist playlist in playlists)
+
+                    if (playlistEntries != null)
                     {
-                        Playlist p = playlistEntries[playlist.id];
-                        if (p == null)
-                            playlist.tracks = new Tracklist();
-                        else
-                            playlist.tracks = p.tracks;
+                        foreach (Playlist playlist in playlists)
+                        {
+                            Playlist p = playlistEntries[playlist.id];
+                            if (p == null)
+                                playlist.tracks = new Tracklist();
+                            else
+                                playlist.tracks = p.tracks;
+                        }
                     }
                 }
-
-                playlists.timestamp = DateTime.Now;
             }
 
             return playlists;
@@ -169,6 +223,9 @@ namespace GoogleMusic
             else
             {
                 Plentryfeed plentryfeed = Json.Deserialize<Plentryfeed>(response);
+
+                if (plentryfeed.data == null) return new Playlists();
+
                 foreach (Plentryfeed.Item item in plentryfeed.data.items)
                     if (item.track == null) item.track = new Track { id = item.trackId };
                 List<Plentryfeed.Item> items = plentryfeed.data.items.FindAll(i => i.deleted == false);

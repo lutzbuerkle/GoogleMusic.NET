@@ -214,7 +214,9 @@ namespace GoogleMusic
     public class Tracklist : List<Track>
     {
         public Tracklist() : base()
-        { }
+        {
+            lastUpdatedTimestamp = new DateTime();
+        }
 
         public Tracklist(IEnumerable<Track> tracks) : this()
         {
@@ -226,7 +228,7 @@ namespace GoogleMusic
             get { return this.Find(t => t.id == id); }
         }
 
-        public DateTime timestamp { get; set; }
+        public DateTime lastUpdatedTimestamp { get; set; }
 
         public void SortByArtist() { this.Sort(Track.CompareByArtist); }
         public void SortByAlbumArtist() { this.Sort(Track.CompareByAlbumArtist); }
@@ -302,7 +304,7 @@ namespace GoogleMusic
             get { return this.Find(p => p.id == id); }
         }
 
-        public DateTime timestamp { get; set; }
+        public DateTime lastUpdatedTimestamp { get; set; }
     }
 
     #endregion

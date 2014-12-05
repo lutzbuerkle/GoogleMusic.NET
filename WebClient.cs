@@ -165,7 +165,7 @@ namespace GoogleMusic
             if (!String.IsNullOrEmpty(response))
             {
                 tracks = new Tracklist();
-                tracks.timestamp = DateTime.Now;
+                tracks.lastUpdatedTimestamp = DateTime.Now;
                 while ((index = response.IndexOf("['slat_process']", index)) > 0)
                 {
                     index += 17;
@@ -212,7 +212,7 @@ namespace GoogleMusic
                 ArrayList array = (_parser.Parse(response)[1] as ArrayList)[0] as ArrayList;
 
                 playlists = new Playlists();
-                playlists.timestamp = DateTime.Now;
+                playlists.lastUpdatedTimestamp = DateTime.Now;
                 foreach (ArrayList pl in array)
                 {
                     Playlist playlist = new Playlist();
