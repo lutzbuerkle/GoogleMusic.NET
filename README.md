@@ -12,13 +12,13 @@ using GoogleMusic;
 string login = "user@gmail.com";
 string passwd = "my-password";
 
-GoogleMusicWebClient WebClient = new GoogleMusicWebClient();
+GoogleMusicMobileClient MobileClient = new GoogleMusicMobileClient();
 
 Console.WriteLine("Login...\n");
-WebClient.Login(login, passwd);
+MobileClient.Login(login, passwd);
 
 Console.WriteLine("Reading library...\n");
-Tracklist tracks = WebClient.GetAllTracks();
+Tracklist tracks = MobileClient.GetAllTracks();
 
 tracks.SortByAlbumArtist();
 
@@ -26,7 +26,7 @@ foreach (Track track in tracks)
     Console.WriteLine("{0} - {1}", track.albumArtistUnified, track.title);
 
 Console.WriteLine("Reading playlists...\n");
-Playlists playlists = WebClient.GetPlaylists();
+Playlists playlists = MobileClient.GetAllPlaylists();
 
 foreach (Playlist playlist in playlists)
     Console.WriteLine(playlist.ToString());

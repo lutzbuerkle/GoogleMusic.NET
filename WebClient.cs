@@ -238,7 +238,7 @@ namespace GoogleMusic
                 if (includeTracks)
                 {
                     foreach (Playlist playlist in playlists)
-                        playlist.tracks = GetPlaylistEntries(playlist.id).tracks;
+                        playlist.entries = GetPlaylistEntries(playlist.id).entries;
                 }
             }
 
@@ -280,7 +280,7 @@ namespace GoogleMusic
                                 ThrowError(String.Format("Track property '{0}' not matched!", property));
                         }
                     }
-                    playlist.tracks.Add(track);
+                    playlist.entries.Add(new PlaylistEntry { track = track });
                 }
             }
 

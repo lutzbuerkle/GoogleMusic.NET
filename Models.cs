@@ -36,10 +36,39 @@ using System.Text.RegularExpressions;
 namespace GoogleMusic
 {
 
+    public interface IGoogleMusicItem
+    {
+        string id { get; set; }
+        bool deleted { get; set; }
+    }
+
+
+    public class Itemlist<T> : List<T> where T : IGoogleMusicItem
+    {
+        public Itemlist() : base()
+        {
+            lastUpdatedTimestamp = new DateTime();
+        }
+
+        public Itemlist(IEnumerable<T> items) : this()
+        {
+            this.AddRange(items);
+            if (items is Itemlist<T>) lastUpdatedTimestamp = (items as Itemlist<T>).lastUpdatedTimestamp;
+        }
+
+        public T this[string id]
+        {
+            get { return this.Find(p => p.id == id); }
+        }
+
+        public DateTime lastUpdatedTimestamp { get; set; }
+    }
+
+
     #region Track
 
     [DataContract]
-    public class Track : IComparable<Track>
+    public class Track : IComparable<Track>, IGoogleMusicItem
     {
         private static readonly Regex _regex = new Regex(@"^(?<ARTICLE>[T|t]he)\s+(?<BODY>.+)", RegexOptions.Compiled);
 
@@ -211,24 +240,13 @@ namespace GoogleMusic
     }
 
 
-    public class Tracklist : List<Track>
+    public class Tracklist : Itemlist<Track>
     {
         public Tracklist() : base()
-        {
-            lastUpdatedTimestamp = new DateTime();
-        }
+        { }
 
-        public Tracklist(IEnumerable<Track> tracks) : this()
-        {
-            this.AddRange(tracks);
-        }
-
-        public Track this[string id]
-        {
-            get { return this.Find(t => t.id == id); }
-        }
-
-        public DateTime lastUpdatedTimestamp { get; set; }
+        public Tracklist(IEnumerable<Track> tracks) : base(tracks)
+        { }
 
         public void SortByArtist() { this.Sort(Track.CompareByArtist); }
         public void SortByAlbumArtist() { this.Sort(Track.CompareByAlbumArtist); }
@@ -241,11 +259,62 @@ namespace GoogleMusic
     #region Playlist
 
     [DataContract]
-    public class Playlist
+    public class PlaylistEntry : IComparable<PlaylistEntry>, IGoogleMusicItem
+    {
+        [DataMember]
+        public string id { get; set; }
+        [DataMember]
+        public string clientId { get; set; }
+        [DataMember]
+        public string playlistId { get; set; }
+        [DataMember]
+        public long absolutePosition { get; set; }
+        [DataMember]
+        public string trackId { get; set; }
+        [DataMember(Name = "creationTimestamp")]
+        private long _creationTimestamp { get; set; }
+        [DataMember(Name = "lastModifiedTimestamp")]
+        private long _lastModifiedTimestamp { get; set; }
+        [DataMember]
+        public bool deleted { get; set; }
+        [DataMember]
+        public int source { get; set; }
+        [DataMember]
+        public Track track { get; set; }
+
+        public DateTime creationTimestamp { get { return ((1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
+        public DateTime lastModifiedTimestamp { get { return ((1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
+
+        public override string ToString()
+        {
+            return track.ToString(); ;
+        }
+
+        public int CompareTo(PlaylistEntry other)
+        {
+            int result = id.CompareTo(other.id);
+            if (result == 0) result = absolutePosition.CompareTo(other.absolutePosition);
+
+            return result;
+        }
+    }
+
+
+    public class PlaylistEntrylist : Itemlist<PlaylistEntry>
+    {
+        public PlaylistEntrylist() : base()
+        { }
+
+        public PlaylistEntrylist(IEnumerable<PlaylistEntry> playlistEntries) : base(playlistEntries)
+        { }
+    }
+
+    [DataContract]
+    public class Playlist : IGoogleMusicItem
     {
         public Playlist()
         {
-            tracks = new Tracklist();
+            entries = new PlaylistEntrylist();
         }
 
         [DataMember]
@@ -271,7 +340,7 @@ namespace GoogleMusic
         [DataMember]
         public bool accessControlled { get; set; }
 
-        public Tracklist tracks { get; set; }
+        public PlaylistEntrylist entries { get; set; }
 
         public DateTime creationTimestamp { get { return ((1e-6 * _creationTimestamp)).FromUnixTime().ToLocalTime(); } }
         public DateTime lastModifiedTimestamp { get { return ((1e-6 * _lastModifiedTimestamp)).FromUnixTime().ToLocalTime(); } }
@@ -289,22 +358,13 @@ namespace GoogleMusic
     }
 
 
-    public class Playlists : List<Playlist>
+    public class Playlists : Itemlist<Playlist>
     {
         public Playlists() : base()
         { }
 
-        public Playlists(IEnumerable<Playlist> playlists) : this()
-        {
-            this.AddRange(playlists);
-        }
-
-        public Playlist this[string id]
-        {
-            get { return this.Find(p => p.id == id); }
-        }
-
-        public DateTime lastUpdatedTimestamp { get; set; }
+        public Playlists(IEnumerable<Playlist> playlists) : base(playlists)
+        { }
     }
 
     #endregion
@@ -421,6 +481,7 @@ namespace GoogleMusic
     }
 
     #endregion
+
 
     [DataContract]
     public class Url

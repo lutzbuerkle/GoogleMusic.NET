@@ -136,44 +136,37 @@ namespace GoogleMusic
         }
 
 
-        public bool UpdateTracks(ref Tracklist tracksInput)
+        public bool UpdateTracks(ref Tracklist tracks)
         {
-            bool updated = false;
+            bool modified = false;
 
-            if (tracksInput != null)
+            if (tracks != null)
             {
-                Tracklist newTracks = GetTracks(tracksInput.lastUpdatedTimestamp);
+                Tracklist newTracks = GetTracks(tracks.lastUpdatedTimestamp);
 
                 if (newTracks != null)
                 {
-                    if (newTracks.Count > 0)
+                    Itemlist<Track> tracksUpdate = UpdateItems<Track>(tracks, newTracks);
+
+                    if (tracksUpdate != null)
                     {
-                        Tracklist tracks = new Tracklist(tracksInput);
-                        foreach (Track newTrack in newTracks)
-                        {
-                            Track removeTrack = tracks[newTrack.id];
-                            if (removeTrack != null)
-                                tracks.Remove(removeTrack);
-                            if (newTrack.deleted == false)
-                                tracks.Add(newTrack);
-                        }
-                        tracksInput = tracks;
-                        updated = true;
+                        tracks = new Tracklist(tracksUpdate);
+                        modified = true;
                     }
 
-                    tracksInput.lastUpdatedTimestamp = DateTime.Now;
+                    tracks.lastUpdatedTimestamp = DateTime.Now;
                 }
             }
 
-            return updated;
+            return modified;
         }
 
 
-        public Playlists GetPlaylists(bool includeTracks = true)
+        public Playlists GetPlaylists(DateTime updateFrom)
         {
             Playlists playlists;
 
-            string response = GoogleMusicService(Service.playlistfeed);
+            string response = GoogleMusicService(Service.playlistfeed, null, updateFrom);
 
             if (String.IsNullOrEmpty(response))
             {
@@ -185,23 +178,29 @@ namespace GoogleMusic
 
                 if (playlistfeed.data == null) return new Playlists();
 
-                playlists = new Playlists(playlistfeed.data.items.FindAll(p => p.deleted == false));
-                playlists.lastUpdatedTimestamp = DateTime.Now;
+                playlists = playlistfeed.data.items;
 
-                if (includeTracks)
+                PlaylistEntrylist entries = GetPlaylistEntries(new DateTime());
+
+                if (entries == null)
                 {
-                    Playlists playlistEntries = GetPlaylistEntries();
+                    playlists = null;
+                }
+                else
+                {
+                    var groupedPlaylists = from entry in entries
+                                           orderby entry.absolutePosition
+                                           group entry by entry.playlistId into groupedEntries
+                                           select new Playlist { id = groupedEntries.Key, entries = new PlaylistEntrylist(groupedEntries) };
+                    Playlists playlistEntries = new Playlists(groupedPlaylists.ToList());
 
-                    if (playlistEntries != null)
+                    foreach (Playlist playlist in playlists)
                     {
-                        foreach (Playlist playlist in playlists)
-                        {
-                            Playlist p = playlistEntries[playlist.id];
-                            if (p == null)
-                                playlist.tracks = new Tracklist();
-                            else
-                                playlist.tracks = p.tracks;
-                        }
+                        Playlist p = playlistEntries[playlist.id];
+                        if (p == null)
+                            playlist.entries = new PlaylistEntrylist();
+                        else
+                            playlist.entries = p.entries;
                     }
                 }
             }
@@ -210,33 +209,113 @@ namespace GoogleMusic
         }
 
 
-        public Playlists GetPlaylistEntries()
+        public Playlists GetAllPlaylists()
         {
-            Playlists playlists;
+            Playlists playlists = GetPlaylists(new DateTime());
 
-            string response = GoogleMusicService(Service.plentryfeed);
+            if (playlists != null)
+            {
+                playlists = new Playlists(playlists.FindAll(p => p.deleted == false));
+
+                foreach (Playlist playlist in playlists)
+                    playlist.entries = new PlaylistEntrylist(playlist.entries.FindAll(e => e.deleted == false));
+
+                playlists.lastUpdatedTimestamp = DateTime.Now;
+            }
+
+            return playlists;
+        }
+
+
+        public bool UpdatePlaylists(ref Playlists playlists)
+        {
+            bool modified = false;
+
+            if (playlists != null)
+            {
+                Playlists newPlaylists = GetPlaylists(playlists.lastUpdatedTimestamp);
+
+                if (newPlaylists != null)
+                {
+                    if (newPlaylists.Count > 0)
+                    {
+                        Playlists playlistsUpdate = new Playlists(playlists);
+                        foreach (Playlist newPlaylist in newPlaylists)
+                        {
+                            Playlist removePlaylist = playlists[newPlaylist.id];
+                            if (removePlaylist != null)
+                            {
+                                Itemlist<PlaylistEntry> entriesUpdate = UpdateItems<PlaylistEntry>(removePlaylist.entries, newPlaylist.entries);
+
+                                if (entriesUpdate != null)
+                                    newPlaylist.entries = new PlaylistEntrylist(entriesUpdate);
+                                else
+                                    newPlaylist.entries = removePlaylist.entries;
+
+                                playlistsUpdate.Remove(removePlaylist);
+                            }
+                            if (newPlaylist.deleted == false)
+                                playlistsUpdate.Add(newPlaylist);
+
+                        }
+
+                        playlists = playlistsUpdate;
+                        modified = true;
+                    }
+
+                    playlists.lastUpdatedTimestamp = DateTime.Now;
+                }
+
+            }
+
+            return modified;
+        }
+
+
+        private PlaylistEntrylist GetPlaylistEntries(DateTime updateFrom)
+        {
+            PlaylistEntrylist entries;
+
+            string response = GoogleMusicService(Service.plentryfeed, null, updateFrom);
 
             if (String.IsNullOrEmpty(response))
             {
-                playlists = null;
+                entries = null;
             }
             else
             {
                 Plentryfeed plentryfeed = Json.Deserialize<Plentryfeed>(response);
 
-                if (plentryfeed.data == null) return new Playlists();
+                if (plentryfeed.data == null) return new PlaylistEntrylist();
 
-                foreach (Plentryfeed.Item item in plentryfeed.data.items)
-                    if (item.track == null) item.track = new Track { id = item.trackId };
-                List<Plentryfeed.Item> items = plentryfeed.data.items.FindAll(i => i.deleted == false);
-                var groupedPlaylists = from item in items
-                                       orderby item.absolutePosition
-                                       group item.track by item.playlistId into groupedTracks
-                                       select new Playlist { id = groupedTracks.Key, tracks = new Tracklist(groupedTracks) };
-                playlists = new Playlists(groupedPlaylists.ToList());
+                entries = plentryfeed.data.items;
+
+                foreach (PlaylistEntry entry in entries)
+                    if (entry.track == null) entry.track = new Track { id = entry.trackId };
             }
 
-            return playlists;
+            return entries;
+        }
+
+
+        private Itemlist<T> UpdateItems<T>(Itemlist<T> inputItems, Itemlist<T> newItems) where T : IGoogleMusicItem
+        {
+            Itemlist<T> items = null;
+
+            if (newItems.Count > 0)
+            {
+                items = new Itemlist<T>(inputItems);
+                foreach (T newItem in newItems)
+                {
+                    T removeItem = items[newItem.id];
+                    if (removeItem != null)
+                        items.Remove(removeItem);
+                    if (newItem.deleted == false)
+                        items.Add(newItem);
+                }
+            }
+
+            return items;
         }
 
 
@@ -389,34 +468,7 @@ namespace GoogleMusic
             public class Data
             {
                 [DataMember]
-                public List<Item> items { get; set; }
-            }
-
-            [DataContract]
-            public class Item
-            {
-                [DataMember]
-                public string kind { get; set; }
-                [DataMember]
-                public string id { get; set; }
-                [DataMember]
-                public string clientId { get; set; }
-                [DataMember]
-                public string playlistId { get; set; }
-                [DataMember]
-                public string absolutePosition { get; set; }
-                [DataMember]
-                public string trackId { get; set; }
-                [DataMember]
-                public string creationTimestamp { get; set; }
-                [DataMember]
-                public string lastModifiedTimestamp { get; set; }
-                [DataMember]
-                public bool deleted { get; set; }
-                [DataMember]
-                public string source { get; set; }
-                [DataMember]
-                public Track track { get; set; }
+                public PlaylistEntrylist items { get; set; }
             }
         }
         
