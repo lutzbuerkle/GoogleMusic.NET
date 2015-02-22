@@ -255,4 +255,77 @@ namespace Utilities.JsArray
             return ch;
         }
     }
+
+
+    public static class JsArrayExtensionMethod
+    {
+        static StringBuilder _s;
+
+        public static string ToJsArray(this ArrayList input)
+        {
+            _s = new StringBuilder();
+
+            ProcessArray(input);
+
+            return _s.ToString();
+        }
+
+        private static void ProcessArray(ArrayList array)
+        {
+            bool init = false;
+
+            _s.Append('[');
+            foreach (object element in array)
+            {
+                if (init)
+                    _s.Append(',');
+                else
+                    init = true;
+
+                if (element == null)
+                    _s.Append("null");
+                else if (element is ArrayList)
+                    ProcessArray(element as ArrayList);
+                else if (element is String)
+                {
+                    _s.Append('"');
+                    _s.Append(element as String);
+                    _s.Append('"');
+                }
+                else if (element is Boolean)
+                {
+                    if ((Boolean)element)
+                        _s.Append("true");
+                    else
+                        _s.Append("false");
+                }
+                else
+                {
+                    switch (Type.GetTypeCode(element.GetType()))
+                    {
+                        case TypeCode.Byte:
+                        case TypeCode.UInt16:
+                        case TypeCode.UInt32:
+                        case TypeCode.UInt64:
+                            _s.Append((UInt64)Convert.ChangeType(element, TypeCode.UInt64));
+                            break;
+                        case TypeCode.SByte:
+                        case TypeCode.Int16:
+                        case TypeCode.Int32:
+                        case TypeCode.Int64:
+                            _s.Append((Int64)Convert.ChangeType(element, TypeCode.Int64));
+                            break;
+                        case TypeCode.Decimal:
+                        case TypeCode.Double:
+                        case TypeCode.Single:
+                            _s.Append(((Double)Convert.ChangeType(element, TypeCode.Double)).ToString("0.0#", new CultureInfo("en-US")));
+                            break;
+                        default:
+                            throw new Exception("Unsupported data type in ArrayList");
+                    }
+                }
+            }
+            _s.Append(']');
+        }
+    }
 }

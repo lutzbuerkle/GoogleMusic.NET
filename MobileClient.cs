@@ -40,6 +40,8 @@ namespace GoogleMusic
 {
     public class GoogleMusicMobileClient : GoogleMusicClient
     {
+        private readonly string _sjurl = "https://mclients.googleapis.com/sj/v1.10/";
+
         public bool LoginStatus { get; private set; }
 
 
@@ -189,9 +191,8 @@ namespace GoogleMusic
                 else
                 {
                     var groupedPlaylists = from entry in entries
-                                           orderby entry.absolutePosition
                                            group entry by entry.playlistId into groupedEntries
-                                           select new Playlist { id = groupedEntries.Key, entries = new PlaylistEntrylist(groupedEntries) };
+                                           select new Playlist { id = groupedEntries.Key, entries = new PlaylistEntrylist(groupedEntries.OrderBy(e => e.absolutePosition)) };
                     Playlists playlistEntries = new Playlists(groupedPlaylists.ToList());
 
                     foreach (Playlist playlist in playlists)
@@ -201,6 +202,21 @@ namespace GoogleMusic
                             playlist.entries = new PlaylistEntrylist();
                         else
                             playlist.entries = p.entries;
+                    }
+                }
+
+                var sharedPlaylists = playlists.FindAll(p => p.type == "SHARED").Select(p => new { id = p.id, shareToken = p.shareToken }).ToArray();
+                if (sharedPlaylists.Length > 0)
+                {
+                    List<SharedPlaylistEntrylist> sharedEntries = GetSharedPlaylistEntries(sharedPlaylists.Select(p => p.shareToken));
+                    foreach (var sharedPlaylist in sharedPlaylists)
+                    {
+                        Playlist playlist = playlists[sharedPlaylist.id];
+                        SharedPlaylistEntrylist sharedEntry = sharedEntries.Find(e => e.shareToken == sharedPlaylist.shareToken);
+                        if (sharedEntry == null)
+                            playlist.entries = new PlaylistEntrylist();
+                        else
+                            playlist.entries = sharedEntry.playlistEntry;
                     }
                 }
             }
@@ -248,7 +264,7 @@ namespace GoogleMusic
                                 Itemlist<PlaylistEntry> entriesUpdate = UpdateItems<PlaylistEntry>(removePlaylist.entries, newPlaylist.entries);
 
                                 if (entriesUpdate != null)
-                                    newPlaylist.entries = new PlaylistEntrylist(entriesUpdate);
+                                    newPlaylist.entries = new PlaylistEntrylist(entriesUpdate.OrderBy(e => e.absolutePosition));
                                 else
                                     newPlaylist.entries = removePlaylist.entries;
 
@@ -292,6 +308,31 @@ namespace GoogleMusic
 
                 foreach (PlaylistEntry entry in entries)
                     if (entry.track == null) entry.track = new Track { id = entry.trackId };
+            }
+
+            return entries;
+        }
+
+
+        private List<SharedPlaylistEntrylist> GetSharedPlaylistEntries(IEnumerable<string> shareToken)
+        {
+            List<SharedPlaylistEntrylist> entries;
+
+            string jsonString = @"{""entries"": [" + String.Join(",", shareToken.Select(s => String.Format("{{\"shareToken\":\"{0}\"}}", s))) + @"]}";
+
+            string response = GoogleMusicService(Service.plentries_shared, jsonString, new DateTime());
+
+            if (String.IsNullOrEmpty(response))
+            {
+                entries = null;
+            }
+            else
+            {
+                SharedPlentryfeed plentryfeed = Json.Deserialize<SharedPlentryfeed>(response);
+
+                if (plentryfeed.entries == null) return new List<SharedPlaylistEntrylist>();
+
+                entries = plentryfeed.entries;
             }
 
             return entries;
@@ -399,6 +440,8 @@ namespace GoogleMusic
                 return null;
             }
 
+            string serviceString = service.ToString().Replace('_', '/');
+
             double updatedMin = 1e6 * updateFrom.ToUnixTime();
             if (updatedMin < 0) updatedMin = 0;
 
@@ -406,7 +449,7 @@ namespace GoogleMusic
 
             try
             {
-                response = httpResponse(httpPostRequest("https://www.googleapis.com/sj/v1.5/" + service.ToString() + String.Format("?alt=json&include-tracks=true&updated-min={0}", Convert.ToUInt64(updatedMin)), jsonString, "application/json", header));
+                response = httpResponse(httpPostRequest(_sjurl + serviceString + String.Format("?alt=json&include-tracks=true&updated-min={0}", Convert.ToUInt64(updatedMin)), jsonString, "application/json", header));
             }
             catch (Exception error)
             {
@@ -471,13 +514,36 @@ namespace GoogleMusic
                 public PlaylistEntrylist items { get; set; }
             }
         }
-        
+
+
+        [DataContract]
+        public class SharedPlentryfeed
+        {
+            [DataMember]
+            public string kind { get; set; }
+            [DataMember]
+            public List<SharedPlaylistEntrylist> entries { get; set; }
+        }
+
+
+        [DataContract]
+        public class SharedPlaylistEntrylist
+        {
+            [DataMember]
+            public string responseCode { get; set; }
+            [DataMember]
+            public string shareToken { get; set; }
+            [DataMember]
+            public PlaylistEntrylist playlistEntry { get; set; }
+        }
+
         
         private enum Service
         {
             trackfeed,
             playlistfeed,
-            plentryfeed
+            plentryfeed,
+            plentries_shared
         }
 
     }
