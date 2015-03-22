@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2014, Lutz Bürkle
+Copyright (c) 2015, Lutz Bürkle
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -43,17 +43,17 @@ namespace GoogleMusic
     }
 
 
-    public class Itemlist<T> : List<T> where T : IGoogleMusicItem
+    public class GoogleMusicItemlist<T> : List<T> where T : IGoogleMusicItem
     {
-        public Itemlist() : base()
+        public GoogleMusicItemlist() : base()
         {
             lastUpdatedTimestamp = new DateTime();
         }
 
-        public Itemlist(IEnumerable<T> items) : this()
+        public GoogleMusicItemlist(IEnumerable<T> items) : this()
         {
             this.AddRange(items);
-            if (items is Itemlist<T>) lastUpdatedTimestamp = (items as Itemlist<T>).lastUpdatedTimestamp;
+            if (items is GoogleMusicItemlist<T>) lastUpdatedTimestamp = (items as GoogleMusicItemlist<T>).lastUpdatedTimestamp;
         }
 
         public T this[string id]
@@ -240,7 +240,7 @@ namespace GoogleMusic
     }
 
 
-    public class Tracklist : Itemlist<Track>
+    public class Tracklist : GoogleMusicItemlist<Track>
     {
         public Tracklist() : base()
         { }
@@ -287,7 +287,7 @@ namespace GoogleMusic
 
         public override string ToString()
         {
-            return track.ToString();
+            return (track != null ? track.ToString() : base.ToString());
         }
 
         public int CompareTo(PlaylistEntry other)
@@ -300,7 +300,7 @@ namespace GoogleMusic
     }
 
 
-    public class PlaylistEntrylist : Itemlist<PlaylistEntry>
+    public class PlaylistEntrylist : GoogleMusicItemlist<PlaylistEntry>
     {
         public PlaylistEntrylist() : base()
         { }
@@ -358,7 +358,7 @@ namespace GoogleMusic
     }
 
 
-    public class Playlists : Itemlist<Playlist>
+    public class Playlists : GoogleMusicItemlist<Playlist>
     {
         public Playlists() : base()
         { }
@@ -409,7 +409,7 @@ namespace GoogleMusic
     }
 
 
-    public class Albumlist : Itemlist<Album>
+    public class Albumlist : GoogleMusicItemlist<Album>
     {
         public Albumlist() : base()
         { }
@@ -423,7 +423,7 @@ namespace GoogleMusic
                                        .GroupBy(track => new { track.album, track.albumArtistNorm })
                                        .Select(groupedTracks => new Album { album = groupedTracks.Key.album, albumArtistSort = groupedTracks.Key.albumArtistNorm, tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
             this.AddRange(albums);
-            if (tracks is Itemlist<Track>) lastUpdatedTimestamp = (tracks as Itemlist<Track>).lastUpdatedTimestamp;
+            if (tracks is GoogleMusicItemlist<Track>) lastUpdatedTimestamp = (tracks as GoogleMusicItemlist<Track>).lastUpdatedTimestamp;
         }
     }
 
@@ -463,7 +463,7 @@ namespace GoogleMusic
     }
 
 
-    public class AlbumArtistlist : Itemlist<AlbumArtist>
+    public class AlbumArtistlist : GoogleMusicItemlist<AlbumArtist>
     {
         public AlbumArtistlist() : base()
         { }
@@ -477,7 +477,7 @@ namespace GoogleMusic
                                                    .GroupBy(track => track.albumArtistNorm)
                                                    .Select(groupedTracks => new AlbumArtist { albumArtistSort = groupedTracks.Key, tracks = new Tracklist(groupedTracks.ToList()) }).ToList();
             this.AddRange(albumArtists);
-            if (tracks is Itemlist<Track>) lastUpdatedTimestamp = (tracks as Itemlist<Track>).lastUpdatedTimestamp;
+            if (tracks is GoogleMusicItemlist<Track>) lastUpdatedTimestamp = (tracks as GoogleMusicItemlist<Track>).lastUpdatedTimestamp;
         }
     }
 

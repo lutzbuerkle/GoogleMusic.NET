@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2014, Lutz Bürkle
+Copyright (c) 2015, Lutz Bürkle
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -148,7 +148,7 @@ namespace GoogleMusic
 
                 if (newTracks != null)
                 {
-                    Itemlist<Track> tracksUpdate = UpdateItems<Track>(tracks, newTracks);
+                    GoogleMusicItemlist<Track> tracksUpdate = UpdateItems<Track>(tracks, newTracks);
 
                     if (tracksUpdate != null)
                     {
@@ -261,12 +261,15 @@ namespace GoogleMusic
                             Playlist removePlaylist = playlists[newPlaylist.id];
                             if (removePlaylist != null)
                             {
-                                Itemlist<PlaylistEntry> entriesUpdate = UpdateItems<PlaylistEntry>(removePlaylist.entries, newPlaylist.entries);
+                                if (newPlaylist.type == "USER_GENERATED")
+                                {
+                                    GoogleMusicItemlist<PlaylistEntry> entriesUpdate = UpdateItems<PlaylistEntry>(removePlaylist.entries, newPlaylist.entries);
 
-                                if (entriesUpdate != null)
-                                    newPlaylist.entries = new PlaylistEntrylist(entriesUpdate.OrderBy(e => e.absolutePosition));
-                                else
-                                    newPlaylist.entries = removePlaylist.entries;
+                                    if (entriesUpdate != null)
+                                        newPlaylist.entries = new PlaylistEntrylist(entriesUpdate.OrderBy(e => e.absolutePosition));
+                                    else
+                                        newPlaylist.entries = removePlaylist.entries;
+                                }
 
                                 playlistsUpdate.Remove(removePlaylist);
                             }
@@ -305,9 +308,6 @@ namespace GoogleMusic
                 if (plentryfeed.data == null) return new PlaylistEntrylist();
 
                 entries = plentryfeed.data.items;
-
-                foreach (PlaylistEntry entry in entries)
-                    if (entry.track == null) entry.track = new Track { id = entry.trackId };
             }
 
             return entries;
@@ -318,7 +318,7 @@ namespace GoogleMusic
         {
             List<SharedPlaylistEntrylist> entries;
 
-            string jsonString = @"{""entries"": [" + String.Join(",", shareToken.Select(s => String.Format("{{\"shareToken\":\"{0}\"}}", s))) + @"]}";
+            string jsonString = @"{""entries"": [" + String.Join(",", shareToken.Select(s => String.Format("{{\"shareToken\":\"{0}\"}}", s)).ToArray()) + @"]}";
 
             string response = GoogleMusicService(Service.plentries_shared, jsonString, new DateTime());
 
@@ -339,13 +339,13 @@ namespace GoogleMusic
         }
 
 
-        private Itemlist<T> UpdateItems<T>(Itemlist<T> inputItems, Itemlist<T> newItems) where T : IGoogleMusicItem
+        private GoogleMusicItemlist<T> UpdateItems<T>(GoogleMusicItemlist<T> inputItems, GoogleMusicItemlist<T> newItems) where T : IGoogleMusicItem
         {
-            Itemlist<T> items = null;
+            GoogleMusicItemlist<T> items = null;
 
             if (newItems.Count > 0)
             {
-                items = new Itemlist<T>(inputItems);
+                items = new GoogleMusicItemlist<T>(inputItems);
                 foreach (T newItem in newItems)
                 {
                     T removeItem = items[newItem.id];

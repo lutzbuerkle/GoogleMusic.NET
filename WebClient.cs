@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2014, Lutz Bürkle
+Copyright (c) 2015, Lutz Bürkle
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -325,45 +325,51 @@ namespace GoogleMusic
         }
 
 
-        public bool ChangeSongMetadata(IEnumerable<string> track_ids, IEnumerable<Dictionary<MetaKey,object>> metadata)
+        public bool ChangeSongMetadata(IEnumerable<string> track_ids, IEnumerable<Dictionary<MetaKey, object>> changes)
         {
             if (track_ids == null) throw new ArgumentNullException("Argument 'track_ids' in ChangeSongMetadata must not be NULL!");
-            if (metadata == null) throw new ArgumentNullException("Argument 'metadata' in ChangeSongMetadata must not be NULL!");
-            if (track_ids.Count() != metadata.Count()) throw new ArgumentException("Inconsistent data count of arguments 'track_ids' and 'metadata'!");
+            if (changes == null) throw new ArgumentNullException("Argument 'changes' in ChangeSongMetadata must not be NULL!");
+            if (track_ids.Count() != changes.Count()) throw new ArgumentException("Inconsistent data count of arguments 'track_ids' and 'changes'!");
 
             bool success = false;
 
             ArrayList tracks = new ArrayList();
-            var tuples = track_ids.Zip(metadata, (i, m) => new { TrackId = i, MetaData = m });
-            foreach (var tuple in tuples)
+
+            using (var changesEnumerator = changes.GetEnumerator())
             {
-                ArrayList track = new ArrayList();
-                foreach (string property in trackProperties)
+                foreach (string track_id in track_ids)
                 {
-                    if (property == "id")
-                        track.Add(tuple.TrackId);
-                    else
+                    if (!changesEnumerator.MoveNext()) break;
+                    Dictionary<MetaKey, object> metadata = changesEnumerator.Current;
+
+                    ArrayList track = new ArrayList();
+                    foreach (string property in trackProperties)
                     {
-                        try
+                        if (property == "id")
+                            track.Add(track_id);
+                        else
                         {
-                            MetaKey key = (MetaKey)Enum.Parse(typeof(MetaKey), property);
-                            if (tuple.MetaData.Keys.Contains(key) && Type.GetTypeCode(tuple.MetaData[key].GetType()) == (TypeCode)(Convert.ToInt32(key) % 0x100))
+                            try
                             {
-                                track.Add(tuple.MetaData[key]);
+                                MetaKey key = (MetaKey)Enum.Parse(typeof(MetaKey), property);
+                                if (metadata.Keys.Contains(key) && Type.GetTypeCode(metadata[key].GetType()) == (TypeCode)(Convert.ToInt32(key) % 0x100))
+                                {
+                                    track.Add(metadata[key]);
+                                }
+                                else
+                                    track.Add(null);
                             }
-                            else
+                            catch (ArgumentException)
+                            {
                                 track.Add(null);
-                        }
-                        catch (ArgumentException)
-                        {
-                            track.Add(null);
-                        }
+                            }
 
+                        }
                     }
-                }
-                track.Add(new ArrayList());
+                    track.Add(new ArrayList());
 
-                tracks.Add(track);
+                    tracks.Add(track);
+                }
             }
             ArrayList array = new ArrayList { new ArrayList { _sessionId, 1 } };
             array.Add(new ArrayList { tracks });
@@ -416,7 +422,7 @@ namespace GoogleMusic
             return response;
         }
 
-            
+
         public List<StreamUrl> GetStreamUrl(string track_id)
         {
             List<StreamUrl> streamUrls = new List<StreamUrl>();
@@ -541,7 +547,7 @@ namespace GoogleMusic
             return new String(randChars);
         }
 
-        
+
         [DataContract]
         private class GetSettingsResponse
         {
