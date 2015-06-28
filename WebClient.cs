@@ -71,15 +71,21 @@ namespace GoogleMusic
 
         #region Login
 
-        public void Login(string login, string passwd)
+        public void Login(string login, string mastertoken)
         {
-            LoginStatus = ClientLogin(login, passwd);
+            LoginStatus = PerformOAuth(login, mastertoken);
 
             if (LoginStatus)
             {
                 LoginStatus = GetAuthenticationCookies();
                 _sessionId = RandomAlphaNumString(12);
             }
+        }
+
+
+        public void Login(Tuple<string, string> mastertoken)
+        {
+            Login(mastertoken.Item1, mastertoken.Item2);
         }
 
 
@@ -413,7 +419,7 @@ namespace GoogleMusic
             {
                 response = httpResponse(httpPostRequest("https://play.google.com/music/services/" + service.ToString() + query, data, "application/x-www-form-urlencoded", header));
             }
-            catch (Exception error)
+            catch (WebException error)
             {
                 response = null;
                 ThrowError(String.Format("Service '{0}' failed!", service.ToString()), error);
@@ -456,7 +462,7 @@ namespace GoogleMusic
                 request.CookieContainer = _credentials.cookieJar;
                 response = httpResponse(request);
             }
-            catch (Exception error)
+            catch (WebException error)
             {
                 ThrowError("Obtaining stream Url failed!", error);
                 return null;
@@ -520,7 +526,7 @@ namespace GoogleMusic
                         Buffer.BlockCopy(audioParts[i], 0, audio, start, audioParts[i].Length);
                     }
                 }
-                catch (Exception error)
+                catch (WebException error)
                 {
                     ThrowError("Retrieving audio stream failed!", error);
                     audio = new byte[] { };

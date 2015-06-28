@@ -1,5 +1,5 @@
 ﻿/*
-Copyright (c) 2014, Lutz Bürkle
+Copyright (c) 2015, Lutz Bürkle
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,10 +29,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Web;
 
 namespace GoogleMusic
 {
@@ -43,48 +42,35 @@ namespace GoogleMusic
 
         public delegate void ErrorHandlerDelegate(string message, Exception error);
 
-        public WebProxy Proxy { get; set; }
+        public IWebProxy Proxy { get; set; }
         public event ErrorHandlerDelegate ErrorHandler;
 
 
         public GoogleMusicClient()
         {
-            Proxy = null;
+            Proxy = WebRequest.GetSystemWebProxy();
             ErrorHandler = null;
         }
 
 
         #region Login
 
-        protected bool ClientLogin(string login, string passwd)
+        protected bool PerformOAuth(string login, string mastertoken)
         {
-            string response;
-            Dictionary<string, string> data = new Dictionary<string, string>();
+            const string client_sig = "38918a453d07199354f8b19af05ec6562ced5788";
 
             _credentials = new Credentials();
 
-            data.Add("accountType", "GOOGLE");
-            data.Add("Email", login);
-            data.Add("Passwd", passwd);
-            data.Add("service", "sj");
+            GPSOAuthClient gpsoauth = new GPSOAuthClient(login, mastertoken);
+            gpsoauth.Proxy = Proxy;
 
-            try
-            {
-                response = httpResponse(httpPostRequest("https://www.google.com/accounts/ClientLogin", data));
-            }
-            catch(Exception error)
-            {
-                ThrowError("Login failed!", error);
-                return false;
-            }
+            Dictionary<string, string> oauth = gpsoauth.PerformOAuth("sj", "com.google.android.music", client_sig);
 
-            Regex regex = new Regex("SID=(.+)\nLSID=(.+)\nAuth=(.+)\n");
-            Match match = regex.Match(response);
-            if (match.Success)
+            if (oauth.ContainsKey("SID") && oauth.ContainsKey("LSID") && oauth.ContainsKey("Auth"))
             {
-                _credentials.SID = match.Groups[1].Value;
-                _credentials.LSID = match.Groups[2].Value;
-                _credentials.Auth = match.Groups[3].Value;
+                _credentials.SID = oauth["SID"];
+                _credentials.LSID = oauth["LSID"];
+                _credentials.Auth = oauth["Auth"];
             }
             else
             {
@@ -120,7 +106,7 @@ namespace GoogleMusic
                 request.CookieContainer = cookieJar;
                 httpResponse(request);
             }
-            catch(Exception error)
+            catch(WebException error)
             {
                 ThrowError("Authentication failed!", error);
                 return false;
@@ -153,7 +139,7 @@ namespace GoogleMusic
                 }
 
             }
-            catch (Exception error)
+            catch (WebException error)
             {
                 ThrowError("Retrieving audio stream failed!", error);
                 audio = new byte[] { };
@@ -215,13 +201,7 @@ namespace GoogleMusic
 
         protected HttpWebRequest httpPostRequest(string url, Dictionary<string, string> postParameters, Dictionary<string, string> header = null)
         {
-            string postData = "";
-
-            foreach (string key in postParameters.Keys)
-            {
-                postData += HttpUtility.UrlEncode(key) + "=" + HttpUtility.UrlEncode(postParameters[key]) + "&";
-            }
-            postData = postData.TrimEnd('&');
+            string postData = String.Join("&", postParameters.Select(x => Uri.EscapeDataString(x.Key) + "=" + Uri.EscapeDataString(x.Value)).ToArray());
 
             return httpPostRequest(url, postData, "application/x-www-form-urlencoded", header);
         }

@@ -40,7 +40,7 @@ namespace GoogleMusic
 {
     public class GoogleMusicMobileClient : GoogleMusicClient
     {
-        private readonly string _sjurl = "https://mclients.googleapis.com/sj/v1.10/";
+        private readonly string _sjurl = "https://mclients.googleapis.com/sj/v1.11/";
 
         public bool LoginStatus { get; private set; }
 
@@ -54,9 +54,15 @@ namespace GoogleMusic
 
         #region Login
 
-        public void Login(string login, string passwd)
+        public void Login(string login, string mastertoken)
         {
-            LoginStatus = ClientLogin(login, passwd);
+            LoginStatus = PerformOAuth(login, mastertoken);
+        }
+
+
+        public void Login(Tuple<string, string> mastertoken)
+        {
+            Login(mastertoken.Item1, mastertoken.Item2);
         }
 
 
@@ -403,7 +409,7 @@ namespace GoogleMusic
                     streamUrl.url = response.Headers["Location"];
                 }
             }
-            catch (Exception error)
+            catch (WebException error)
             {
                 ThrowError("Obtaining Stream Url failed!", error);
                 return null;
@@ -451,7 +457,7 @@ namespace GoogleMusic
             {
                 response = httpResponse(httpPostRequest(_sjurl + serviceString + String.Format("?alt=json&include-tracks=true&updated-min={0}", Convert.ToUInt64(updatedMin)), jsonString, "application/json", header));
             }
-            catch (Exception error)
+            catch (WebException error)
             {
                 response = null;
                 ThrowError(String.Format("Service '{0}' failed!", service.ToString()), error);

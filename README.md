@@ -9,13 +9,17 @@ using GoogleMusic;
 
 ...
 
-string login = "user@gmail.com";
-string passwd = "my-password";
+string email = "user@gmail.com";
+string password = "my-password";
+string androidId = "123456789abcdef0";
+
+GPSOAuthClient gpsoauth = new GPSOAuthClient();
+gpsoauth.MasterLogin(email, password, androidId);
 
 GoogleMusicMobileClient MobileClient = new GoogleMusicMobileClient();
 
 Console.WriteLine("Login...\n");
-MobileClient.Login(login, passwd);
+MobileClient.Login(gpsoauth.MasterToken);
 
 Console.WriteLine("Reading library...\n");
 Tracklist tracks = MobileClient.GetAllTracks();
