@@ -58,13 +58,22 @@ namespace GoogleMusic
         protected bool PerformOAuth(string login, string mastertoken)
         {
             const string client_sig = "38918a453d07199354f8b19af05ec6562ced5788";
+            Dictionary<string, string> oauth;
 
             _credentials = new Credentials();
 
             GPSOAuthClient gpsoauth = new GPSOAuthClient(login, mastertoken);
             gpsoauth.Proxy = Proxy;
 
-            Dictionary<string, string> oauth = gpsoauth.PerformOAuth("sj", "com.google.android.music", client_sig);
+            try
+            {
+                oauth = gpsoauth.PerformOAuth("sj", "com.google.android.music", client_sig);
+            }
+            catch(WebException error)
+            {
+                ThrowError("Authentication failed!", error);
+                return false;
+            }
 
             if (oauth.ContainsKey("SID") && oauth.ContainsKey("LSID") && oauth.ContainsKey("Auth"))
             {
