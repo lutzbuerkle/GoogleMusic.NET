@@ -54,9 +54,19 @@ namespace GoogleMusic
 
         #region Login
 
-        public void Login(string login, string mastertoken)
+        public Tuple<string, string> MasterLogin(string email, string password, string androidId)
         {
-            LoginStatus = PerformOAuth(login, mastertoken);
+            Tuple<string, string> token = base.MasterLogin(email, password, androidId);
+
+            if (token != null) Login(token);
+
+            return token;
+        }
+
+
+        public void Login(string email, string mastertoken)
+        {
+            LoginStatus = PerformOAuth(email, mastertoken);
         }
 
 

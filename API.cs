@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 
 namespace GoogleMusic
@@ -42,18 +43,40 @@ namespace GoogleMusic
 
         public delegate void ErrorHandlerDelegate(string message, Exception error);
 
+        public string MACaddress { get; private set; }
         public IWebProxy Proxy { get; set; }
         public event ErrorHandlerDelegate ErrorHandler;
 
 
         public GoogleMusicClient()
         {
+            MACaddress = (from nic in NetworkInterface.GetAllNetworkInterfaces()
+                          where nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                          select nic.GetPhysicalAddress().ToString()).FirstOrDefault();
             Proxy = WebRequest.GetSystemWebProxy();
             ErrorHandler = null;
         }
 
 
         #region Login
+
+        public virtual Tuple<string, string> MasterLogin(string email, string password, string androidId)
+        {
+            GPSOAuthClient gpsOAuthClient = new GPSOAuthClient();
+            gpsOAuthClient.Proxy = Proxy;
+
+            try
+            {
+                gpsOAuthClient.MasterLogin(email, password, androidId);
+            }
+            catch (WebException error)
+            {
+                ThrowError("Authentication failed!", error);
+            }
+
+            return gpsOAuthClient.MasterToken;
+        }
+
 
         protected bool PerformOAuth(string login, string mastertoken)
         {
