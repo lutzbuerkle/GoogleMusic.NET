@@ -54,7 +54,7 @@ namespace GoogleMusic
 
         #region Login
 
-        public Tuple<string, string> MasterLogin(string email, string password, string androidId)
+        public new Tuple<string, string> MasterLogin(string email, string password, string androidId)
         {
             Tuple<string, string> token = base.MasterLogin(email, password, androidId);
 
