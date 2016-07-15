@@ -525,47 +525,32 @@ namespace GoogleMusic
     [DataContract]
     public class Settings
     {
-        [DataMember]
-        public bool isCanceled { get; set; }
-        [DataMember(Name = "expirationMillis")]
-        private long _expirationMillis { get; set; }
-        [DataMember]
-        public bool isTrial { get; set; }
-        [DataMember]
-        public bool subscriptionNewsletter { get; set; }
-        [DataMember]
-        public List<Device> devices { get; set; }
-        [DataMember]
         public bool isSubscription { get; set; }
-        [DataMember]
+        public bool isCanceled { get; set; }
+        public bool isTrial { get; set; }
+        public bool newsletterSubscription { get; set; }
+        public List<Device> devices { get; set; }
         public int maxTracks { get; set; }
 
-        public DateTime expiration { get { return ((1e-3 * _expirationMillis)).FromUnixTime().ToLocalTime(); } }
+        private long _expiration { get; set; }
+
+        public DateTime expiration { get { return ((1e-3 * _expiration)).FromUnixTime().ToLocalTime(); } }
     }
 
 
     [DataContract]
     public class Device
     {
-        [DataMember]
         public string id { get; set; }
-        [DataMember]
-        public string model { get; set; }
-        [DataMember]
-        public string manufacturer { get; set; }
-        [DataMember]
         public string name { get; set; }
-        [DataMember]
+        public int type { get; set; }
+        public string model { get; set; }
+        public string manufacturer { get; set; }
         public string carrier { get; set; }
-        [DataMember]
-        public string type { get; set; }
-        [DataMember(Name = "date")]
-        private long _date { get; set; }
-        [DataMember(Name = "lastUsedMs")]
-        private long _lastUsedMs { get; set; }
 
-        public DateTime date { get { return ((1e-3 * _date)).FromUnixTime().ToLocalTime(); } }
-        public DateTime lastUsed { get { return ((1e-3 * _lastUsedMs)).FromUnixTime().ToLocalTime(); } }
+        private long _lastAccessed { get; set; }
+
+        public DateTime lastAccessed { get { return ((1e-3 * _lastAccessed)).FromUnixTime().ToLocalTime(); } }
 
         public override string ToString()
         {

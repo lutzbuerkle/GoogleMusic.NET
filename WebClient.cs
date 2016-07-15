@@ -43,7 +43,7 @@ namespace GoogleMusic
 {
     public class GoogleMusicWebClient : GoogleMusicClient
     {
-        private readonly string[] trackProperties = {
+        private readonly string[] trackScheme = {
             "id", "title", "_albumArtUrl", "artist", "album", "albumArtist", "titleNorm",
             "artistNorm", "albumNorm", "albumArtistNorm", "composer", "genre", null, "durationMillis",
             "track", "totalTracks", "disc", "totalDiscs", "year", "deleted", null, null,
@@ -51,9 +51,15 @@ namespace GoogleMusic
             "nid", "type", "comment", null, "albumId", "_artistId",
             "bitrate", "_recentTimestamp", "_artistArtUrl", null, "explicitType"
         };
-        private readonly string[] playlistProperties = {
+        private readonly string[] playlistScheme = {
             "id", "name", "_creationTimestamp", "_lastModifiedTimestamp", "type", "shareToken",
             null, null, "ownerName", null, "ownerProfilePhotoUrl"
+        };
+        private readonly string[] deviceScheme = {
+            "id", null, "_lastAccessed", "name", "type", "carrier", "manufacturer", "model"
+        };
+        private readonly string[] settingsScheme = {
+            "isSubscription", "isCanceled", "isTrial", "_expiration"
         };
 
         private JsArray _parser = new JsArray();
@@ -65,7 +71,7 @@ namespace GoogleMusic
         public GoogleMusicWebClient() : base()
         {
             LoginStatus = false;
-            _useragent = "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1)";
+            _useragent = "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 10.0)";
         }
 
 
@@ -141,26 +147,31 @@ namespace GoogleMusic
         }
 
 
-        public int GetTrackCount()
-        {
-            Status status = GetStatus();
-
-            if (status == null)
-                return 0;
-            else
-                return status.availableTracks;
-        }
-
-
         public Settings GetSettings()
         {
             Settings settings = null;
+            string jsArray = String.Format(@"[[""{0}"",1],[]]", _sessionId);
 
-            string response = GoogleMusicService(Service.loadsettings);
+            string response = GoogleMusicService(Service.fetchsettings, jsArray);
 
             if (!String.IsNullOrEmpty(response))
             {
-                settings = Json.Deserialize<GetSettingsResponse>(response).settings;
+                settings = new Settings();
+
+                ArrayList array = (_parser.Parse(response)[1] as ArrayList)[0] as ArrayList;
+
+                settings = ResolveJSArray<Settings>(array[3] as ArrayList, settingsScheme);
+
+                settings.maxTracks = Convert.ToInt32(array[2]);
+                settings.newsletterSubscription = Convert.ToBoolean(array[4]);
+
+                List<Device> devices = new List<Device>();
+                foreach (ArrayList d in (array[1] as ArrayList))
+                {
+                    Device device = ResolveJSArray<Device>(d, deviceScheme);
+                    devices.Add(device);
+                }
+                settings.devices = devices;
             }
 
             return settings;
@@ -197,23 +208,7 @@ namespace GoogleMusic
 
                     foreach (ArrayList t in (array[0] as ArrayList))
                     {
-                        Track track = new Track();
-                        for (int i = 0; i < trackProperties.Length; i++)
-                        {
-                            string property = trackProperties[i];
-                            if (!String.IsNullOrEmpty(property))
-                            {
-                                MethodInfo info = typeof(Track).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                                if (info != null && i < t.Count)
-                                {
-                                    object ti = t[i];
-                                    if (ti != null) ti = Convert.ChangeType(ti, info.GetParameters()[0].ParameterType);
-                                    info.Invoke(track, new[] { ti });
-                                }
-                                else
-                                    ThrowError(String.Format("Track property '{0}' not matched!", property));
-                            }
-                        }
+                        Track track = ResolveJSArray<Track>(t, trackScheme);
                         tracks.Add(track);
                     }
                 }
@@ -238,23 +233,7 @@ namespace GoogleMusic
                 playlists.lastUpdatedTimestamp = DateTime.Now;
                 foreach (ArrayList pl in array)
                 {
-                    Playlist playlist = new Playlist();
-                    for (int i = 0; i < playlistProperties.Length; i++)
-                    {
-                        string property = playlistProperties[i];
-                        if (!String.IsNullOrEmpty(property))
-                        {
-                            MethodInfo info = typeof(Playlist).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                            if (info != null && i < pl.Count)
-                            {
-                                object pli = pl[i];
-                                if (pli != null) pli = Convert.ChangeType(pli, info.GetParameters()[0].ParameterType);
-                                info.Invoke(playlist, new[] { pli });
-                            }
-                            else
-                                ThrowError(String.Format("Playlist property '{0}' not matched!", property));
-                        }
-                    }
+                    Playlist playlist = ResolveJSArray<Playlist>(pl, playlistScheme);
                     playlists.Add(playlist);
                 }
 
@@ -291,23 +270,7 @@ namespace GoogleMusic
 
                     foreach (ArrayList t in array)
                     {
-                        Track track = new Track();
-                        for (int i = 0; i < trackProperties.Length; i++)
-                        {
-                            string property = trackProperties[i];
-                            if (!String.IsNullOrEmpty(property))
-                            {
-                                MethodInfo info = typeof(Track).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                                if (info != null && i < t.Count)
-                                {
-                                    object ti = t[i];
-                                    if (ti != null) ti = Convert.ChangeType(ti, info.GetParameters()[0].ParameterType);
-                                    info.Invoke(track, new[] { ti });
-                                }
-                                else
-                                    ThrowError(String.Format("Track property '{0}' not matched!", property));
-                            }
-                        }
+                        Track track = ResolveJSArray<Track>(t, trackScheme);
                         playlist.entries.Add(new PlaylistEntry { track = track });
                     }
                 }
@@ -359,7 +322,7 @@ namespace GoogleMusic
                     Dictionary<MetaKey, object> metadata = changesEnumerator.Current;
 
                     ArrayList track = new ArrayList();
-                    foreach (string property in trackProperties)
+                    foreach (string property in trackScheme)
                     {
                         if (property == "id")
                             track.Add(track_id);
@@ -411,7 +374,7 @@ namespace GoogleMusic
                 return null;
             }
 
-            string query = String.Format("?u=0&xt={0}&format=jsarray", _credentials.xt);
+            string query = String.Format("?u=0&format=jsarray&xt={0}", _credentials.xt);
 
             cookies = _credentials.cookieJar.GetCookies(new Uri("https://play.google.com/music/listen"));
 
@@ -463,11 +426,11 @@ namespace GoogleMusic
             {
                 if (track_id.IsGuid())
                 {
-                    request = httpGetRequest("https://play.google.com/music/play" + String.Format("?u=0&slt={0}&songid={1}&sig={2}&pt=e", _sessionId, track_id, sig));
+                    request = httpGetRequest("https://play.google.com/music/mplay" + String.Format("?u=0&slt={0}&songid={1}&sig={2}&pt=e", _sessionId, track_id, sig));
                 }
                 else
                 {
-                    request = httpGetRequest("https://play.google.com/music/play" + String.Format("?u=0&slt={0}&mjck={1}&sig={2}&pt=e", _sessionId, track_id, sig));
+                    request = httpGetRequest("https://play.google.com/music/mplay" + String.Format("?u=0&slt={0}&mjck={1}&sig={2}&pt=e", _sessionId, track_id, sig));
                 }
                 request.CookieContainer = _credentials.cookieJar;
                 response = httpResponse(request);
@@ -549,6 +512,30 @@ namespace GoogleMusic
         #endregion
 
 
+        private T ResolveJSArray<T>(ArrayList array, string[] scheme) where T : new()
+        {
+            T data = new T();
+            for (int i = 0; i < scheme.Length; i++)
+            {
+                string property = scheme[i];
+                if (!String.IsNullOrEmpty(property))
+                {
+                    MethodInfo info = typeof(T).GetMethod("set_" + property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (info != null && i < array.Count)
+                    {
+                        object ai = array[i];
+                        if (ai != null) ai = Convert.ChangeType(ai, info.GetParameters()[0].ParameterType);
+                        info.Invoke(data, new[] { ai });
+                    }
+                    else
+                        ThrowError(String.Format("Object property '{0}' not matched for object '{1}'", property, typeof(T).Name));
+                }
+            }
+
+            return data;
+        }
+
+
         private string RandomAlphaNumString(int length)
         {
             const string chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -565,14 +552,6 @@ namespace GoogleMusic
 
 
         [DataContract]
-        private class GetSettingsResponse
-        {
-            [DataMember]
-            public Settings settings { get; set; }
-        }
-
-
-        [DataContract]
         private class StreamUrlResponse
         {
             [DataMember]
@@ -585,7 +564,7 @@ namespace GoogleMusic
         private enum Service
         {
             getstatus,
-            loadsettings,
+            fetchsettings,
             streamingloadalltracks,
             loadplaylists,
             loaduserplaylist,
